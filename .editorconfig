@@ -1,0 +1,27 @@
+# EditorConfig helps developers define and maintain consistent coding styles
+# https://editorconfig.org
+#
+# Custom config for Vexlang (Vex) environment
+#
+root = true
+
+# Global settings for all files
+[*]
+charset = utf-8
+end_of_line = lf
+indent_style = space
+indent_size = 4
+insert_final_newline = true
+trim_trailing_whitespace = true
+
+# Rust source files specific rules
+[*.rs]
+max_line_length = 100
+
+# Configuration and metadata files (Cargo, etc.)
+[*.toml]
+indent_size = 2
+
+# Documentation files
+[*.md]
+trim_trailing_whitespace = false

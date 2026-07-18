@@ -1,0 +1,8 @@
+# QBE Target output
+data $fmt_int = { b "%d\n", b 0 }
+export function w $main() {
+@start
+    %x =w copy 10
+    call $printf(l $fmt_int, w %x)
+    ret 0
+}

@@ -1,0 +1,55 @@
+// --- Primitives ---
+WHITESPACE = _{ " " | "\t" | "\n" | "\r" }
+COMMENT    = _{ "//" ~ (!"\n" ~ ANY)* }
+
+// Keywords (added to ensure they are parsed as tokens, not identifiers)
+KW_LET    = { "let" }
+KW_IF     = { "if" }
+KW_ELSE   = { "else" }
+KW_WHILE  = { "while" }
+KW_FN     = { "fn" }
+KW_LAYOUT = { "layout" }
+
+// Identifiers & Literals
+ident     = @{ (ASCII_ALPHA | "_") ~ (ASCII_ALPHANUMERIC | "_")* }
+int       = @{ ASCII_DIGIT+ }
+type_name = { "i32" | "u64" | "f64" | "bool" | "res" | ident }
+
+// --- Operators ---
+add = { "+" }
+sub = { "-" }
+mul = { "*" }
+div = { "/" }
+eq  = { "==" }
+lt  = { "<" }
+gt  = { ">" }
+
+// --- Expressions ---
+// Added fn_call to atom. Unary ops (like -x) are crucial for "strength"
+unary_op = _{ sub }
+atom     = _{ fn_call | int | ident | "(" ~ expr ~ ")" }
+fn_call  = { ident ~ "(" ~ args? ~ ")" }
+args     = { expr ~ ("," ~ expr)* }
+
+// The expression logic
+expr     = { (unary_op? ~ atom) ~ (bin_op ~ unary_op? ~ atom)* }
+bin_op   = _{ add | sub | mul | div | eq | lt | gt }
+
+// --- Declarations ---
+field     = { ident ~ ":" ~ type_name ~ ";" }
+type_decl = { KW_LAYOUT ~ ident ~ "{" ~ field* ~ "}" }
+fn_decl   = { KW_FN ~ ident ~ "(" ~ params? ~ ")" ~ ("->" ~ type_name)? ~ block }
+params    = { param ~ ("," ~ param)* }
+param     = { ident ~ ":" ~ type_name }
+
+// --- Control Flow ---
+// Blocks can return values (expression-oriented), similar to Rust
+block      = { "{" ~ stmt* ~ expr? ~ "}" }
+if_stmt    = { KW_IF ~ expr ~ block ~ (KW_ELSE ~ block)? }
+while_stmt = { KW_WHILE ~ expr ~ block }
+
+// --- Program Structure ---
+let_decl  = { KW_LET ~ ident ~ (":" ~ type_name)? ~ "=" ~ expr ~ ";" }
+expr_stmt = { expr ~ ";" } // Give this a name so the Rule variant is generated
+stmt      = { let_decl | fn_decl | type_decl | if_stmt | while_stmt | expr_stmt }
+program   = { SOI ~ stmt* ~ EOI }

@@ -1,0 +1,10 @@
+[book]
+title = "VEXLANG"
+authors = ["Darkstar"]
+description = "Rust / Zig Based Coding Language"
+language = "en"
+
+[output.html]
+additional-css = ["theme/book.css"]
+no-section-label = true
+

@@ -1,0 +1,10 @@
+# .gitignore file for vexlang environment
+#
+# Ignore these files
+.directory
+
+# Ignore these folders
+/tests/
+/examples/
+/target/
+
