@@ -17,6 +17,7 @@ metadata checks.
 | `test FILE` | Validate and evaluate as an executable smoke test | `0` |
 | `build FILE` | Validate and print the typed textual IR (no machine code) | `0` |
 | `ir FILE` | Alias for `build`; print the typed textual IR | `0` |
+| `target FILE` | Validate against `vex-scalar-v1` and emit textual target IR | `0` |
 
 `vexlang FILE` remains a backwards-compatible alias for `vexlang run FILE`.
 Examples:

@@ -113,6 +113,25 @@ fn textual_ir_is_deterministic_and_not_a_native_artifact() {
 }
 
 #[test]
+fn target_command_emits_contract_header_for_scalar_and_rejects_unsupported() {
+    let scalar_source = "let x: i32 = 1; while x < 3 { x = x + 1; } x;";
+    let output = vex(scalar_source, "target");
+    assert!(
+        output.status.success(),
+        "target failed: {:?}",
+        output.stderr
+    );
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.starts_with("target vex-scalar-v1\nentry vex_main\n"));
+
+    let non_scalar_source = "let xs = [1, 2]; xs;";
+    let output = vex(non_scalar_source, "target");
+    assert_eq!(output.status.code(), Some(3));
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("BE002"));
+}
+
+#[test]
 #[ignore = "manual performance smoke test; run with cargo test --test release_readiness -- --ignored --nocapture"]
 fn performance_smoke() {
     let mut source = String::new();

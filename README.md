@@ -80,10 +80,13 @@ cargo run -- check program.vex
 cargo run -- test program.vex
 cargo run -- build program.vex
 cargo run -- ir program.vex
+cargo run -- target program.vex
 ```
 
 `fmt` validates source and writes it to stdout. `build` and `ir` validate and
 lower the program to deterministic textual IR; they do not emit machine code.
+`target` validates the IR against the `vex-scalar-v1` contract and emits
+a verified textual target artifact.
 Before rendering, the IR verifier checks scopes, types, declarations, control
 flow, and backend support. A failed verification is a hard error: no backend
 is invoked and no native artifact is produced.

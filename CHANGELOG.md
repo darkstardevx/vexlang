@@ -6,6 +6,8 @@
   deferred-feature failures) that runs before `build`/`ir` artifacts are
   rendered.
 - Documented the native lowering subset and runtime/backend contract.
+- Added the first native target contract (`vex-scalar-v1`), target validator,
+  `TextBackend` emitter, and `target` CLI command.
 - Added a backend trait boundary without emitting fake QBE or native output.
 
 ## 0.1.0-alpha.1

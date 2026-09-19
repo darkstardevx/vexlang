@@ -41,6 +41,8 @@ This file records delivered phases. Forward-looking work is tracked in
   feature errors before any backend boundary.
 - Documented the lowerable subset and the runtime contract required by a first
   native target.
+- Added the `vex-scalar-v1` target contract, target validation, and the `target`
+  CLI command emitting verified target IR.
 - Kept native and QBE output explicitly unsupported until a verified backend
   exists.
 

@@ -14,6 +14,7 @@ use std::io::{self, BufRead, Read, Write};
 
 use analyzer::SemanticAnalyzer;
 use builder::build_ast;
+use codegen::{Backend, TextBackend};
 use diagnostics::{Diagnostic, Span, span_for};
 use parser::parse_vex;
 use pest::error::LineColLocation;
@@ -115,7 +116,7 @@ fn read_source(path: Option<&str>) -> Result<String, String> {
 }
 
 fn usage() -> &'static str {
-    "usage: vexlang [check|run|repl|project|fmt|test|build|ir] [FILE|-]\n       vexlang FILE   (backwards-compatible alias for run)\n       vexlang --version"
+    "usage: vexlang [check|run|repl|project|fmt|test|build|ir|target] [FILE|-]\n       vexlang FILE   (backwards-compatible alias for run)\n       vexlang --version"
 }
 
 fn repl() {
@@ -198,7 +199,7 @@ fn main() {
         [one]
             if !matches!(
                 one.as_str(),
-                "check" | "run" | "repl" | "project" | "fmt" | "test" | "build" | "ir"
+                "check" | "run" | "repl" | "project" | "fmt" | "test" | "build" | "ir" | "target"
             ) =>
         {
             ("run", Some(one.as_str()))
@@ -207,7 +208,7 @@ fn main() {
         [command, path]
             if matches!(
                 command.as_str(),
-                "check" | "run" | "project" | "fmt" | "test" | "build" | "ir"
+                "check" | "run" | "project" | "fmt" | "test" | "build" | "ir" | "target"
             ) =>
         {
             (command.as_str(), Some(path.as_str()))
@@ -266,6 +267,19 @@ fn main() {
         },
         "build" | "ir" => match lower_source(&source) {
             Ok((_stmts, program)) => print!("{}", ir::render(&program)),
+            Err(error) => {
+                eprintln!("{}", error.render(&source, path.unwrap_or("<stdin>")));
+                std::process::exit(1);
+            }
+        },
+        "target" => match lower_source(&source) {
+            Ok((_stmts, program)) => match TextBackend.emit(&program) {
+                Ok(text) => print!("{text}"),
+                Err(error) => {
+                    eprintln!("error: {error}");
+                    std::process::exit(3);
+                }
+            },
             Err(error) => {
                 eprintln!("{}", error.render(&source, path.unwrap_or("<stdin>")));
                 std::process::exit(1);
