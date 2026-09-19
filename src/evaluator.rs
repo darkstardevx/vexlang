@@ -298,6 +298,38 @@ fn eval_expr(x: &Expr, e: &mut Env, f: &Functions, d: usize) -> Result<Control, 
                     value: Box::new(vals.into_iter().next().unwrap()),
                 }));
             }
+            if n == "map" {
+                if vals.len() % 2 != 0 {
+                    return Err(EvalError::RuntimeError(
+                        "map expects key/value pairs".into(),
+                    ));
+                }
+                let mut map = BTreeMap::new();
+                for pair in vals.chunks(2) {
+                    let Value::String(key) = &pair[0] else {
+                        return Err(EvalError::TypeError("map keys must be strings".into()));
+                    };
+                    map.insert(key.clone(), pair[1].clone());
+                }
+                return Ok(Control::Value(Value::Map(map)));
+            }
+            if n == "map_get" {
+                if vals.len() != 2 {
+                    return Err(EvalError::RuntimeError(
+                        "map_get expects two arguments".into(),
+                    ));
+                }
+                let (Value::Map(map), Value::String(key)) = (&vals[0], &vals[1]) else {
+                    return Err(EvalError::TypeError(
+                        "map_get expects a map and string key".into(),
+                    ));
+                };
+                return map
+                    .get(key)
+                    .cloned()
+                    .map(Control::Value)
+                    .ok_or_else(|| EvalError::RuntimeError(format!("missing map key `{key}`")));
+            }
             call(n, vals, f, d)
         }
         Expr::UnaryOp(Op::Not, x) => Ok(Control::Value(Value::Bool(!as_bool(eval_expr(
@@ -384,6 +416,7 @@ fn validate(n: &str, t: &Type, v: &Value) -> Result<(), EvalError> {
             matches!(v, Value::Record(value_name, _) if value_name == name)
                 || matches!(v, Value::Enum { enum_name, .. } if enum_name == name)
                 || (name == "Result" && matches!(v, Value::Result { .. }))
+                || (name == "Map" && matches!(v, Value::Map(_)))
         }
         Type::Array(element) => {
             matches!(v, Value::Array(values) if values.iter().all(|value| validate(n, element, value).is_ok()))
@@ -432,6 +465,7 @@ fn display(v: &Value) -> String {
         Value::Result { ok, value } => {
             format!("{}({})", if *ok { "Ok" } else { "Err" }, display(value))
         }
+        Value::Map(map) => format!("Map{{{} entries}}", map.len()),
     }
 }
 fn set_index(array: &mut Value, indices: &[usize], value: Value) -> Result<(), EvalError> {

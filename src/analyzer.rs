@@ -359,6 +359,26 @@ impl SemanticAnalyzer {
                 .cloned()
                 .ok_or_else(|| format!("undefined variable `{n}`")),
             Expr::Call(n, args) => {
+                if n == "map" {
+                    if args.len() % 2 != 0 {
+                        return Err("map expects key/value pairs".into());
+                    }
+                    for arg in args {
+                        self.check_expr(arg, scope, loops, ret)?;
+                    }
+                    return Ok(Type::Custom("Map".into()));
+                }
+                if n == "map_get" {
+                    if args.len() != 2 {
+                        return Err("map_get expects a map and string key".into());
+                    }
+                    if self.check_expr(&args[0], scope, loops, ret)? != Type::Custom("Map".into())
+                        || self.check_expr(&args[1], scope, loops, ret)? != Type::String
+                    {
+                        return Err("map_get expects a map and string key".into());
+                    }
+                    return Ok(Type::Inferred);
+                }
                 if matches!(n.as_str(), "ok" | "err") {
                     if args.len() != 1 {
                         return Err(format!("{n} expects one argument"));

@@ -512,4 +512,12 @@ mod tests {
             })
         );
     }
+
+    #[test]
+    fn evaluates_scoped_maps() {
+        assert_eq!(
+            run(r#"let values = map("answer", 42); map_get(values, "answer");"#),
+            Ok(Value::Int(42))
+        );
+    }
 }

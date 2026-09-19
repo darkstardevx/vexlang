@@ -126,6 +126,7 @@ pub enum Value {
         ok: bool,
         value: Box<Value>,
     },
+    Map(BTreeMap<String, Value>),
 }
 
 #[derive(Debug, Clone, PartialEq)]

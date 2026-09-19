@@ -102,3 +102,10 @@ and project/package management remain future work.
   CLI command.
 - Module resolution, imports, manifests beyond the `[project]` section, and
   dependency management remain deferred.
+
+## Phase 14 — Scoped maps
+
+- Added a string-keyed map collection with `map` construction and `map_get`.
+- Added analyzer validation, interpreter values, display formatting, and IR
+  builtin typing.
+- Full generics, map mutation/iteration, and non-string keys are deferred.

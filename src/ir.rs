@@ -430,6 +430,7 @@ fn lower_expr(expr: &Expr, functions: &Functions, scope: &mut Scope) -> Result<I
             let ty = match name.as_str() {
                 "print" | "println" => IrType::Unit,
                 "ok" | "err" => IrType::Record("Result".into()),
+                "map" | "map_get" => IrType::Record("Map".into()),
                 "i32" => IrType::I32,
                 "u64" => IrType::U64,
                 _ => functions

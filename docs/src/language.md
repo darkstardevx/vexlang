@@ -141,3 +141,10 @@ source = "src/main.vex"
 
 Use `vexlang project vex.toml` to validate and summarize it. Module/import
 resolution and dependency management are reserved for a later phase.
+
+## Maps (scoped collection)
+
+Maps are available as a deliberately small, non-generic collection:
+`map("key", value, ...)` creates a string-keyed map and `map_get(map, "key")`
+retrieves a value. Missing keys are runtime errors. Mutation, arbitrary key
+types, iteration, and full generic type parameters remain deferred.
