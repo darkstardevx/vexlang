@@ -21,7 +21,9 @@ features.
 - Add user-defined types and records. **Records are complete:** declarations,
   construction, field access, semantic field/type validation, interpreter
   evaluation, and textual-IR lowering are covered by unit and CLI tests.
-- Add collections and indexing.
+- Add typed array collections and indexing. **Complete:** array literals,
+  nested arrays, annotations, indexing, mutation, diagnostics, and textual IR.
+- Maps and generics remain explicitly deferred.
 - Add a structured error/result model.
 - Define modules, imports, and project configuration.
 

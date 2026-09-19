@@ -259,6 +259,35 @@ mod tests {
     }
 
     #[test]
+    fn arrays_support_empty_nested_indexing_and_mutation() {
+        assert_eq!(run("let xs: [i32] = []; xs;"), Ok(Value::Array(vec![])));
+        assert_eq!(
+            run("let xs = [[1, 2], [3, 4]]; xs[1][0];"),
+            Ok(Value::Int(3))
+        );
+        assert_eq!(run("let xs = [1, 2]; xs[0] = 9; xs[0];"), Ok(Value::Int(9)));
+    }
+
+    #[test]
+    fn arrays_report_type_and_bounds_errors() {
+        assert!(
+            run("let xs: [i32] = [true];")
+                .unwrap_err()
+                .contains("type mismatch")
+        );
+        assert!(
+            run("let xs = [1]; xs[2];")
+                .unwrap_err()
+                .contains("out of bounds")
+        );
+        assert!(
+            run("let xs = [1]; xs[true];")
+                .unwrap_err()
+                .contains("index")
+        );
+    }
+
+    #[test]
     fn while_loops_evaluate_conditionally() {
         assert_eq!(run("while false { let x = 5; }"), Ok(Value::Int(0)));
         assert_eq!(

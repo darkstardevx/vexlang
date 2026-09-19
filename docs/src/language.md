@@ -60,9 +60,25 @@ let point: Point = Point { x: 2, y: 3 };
 point.x + point.y;
 ```
 
-Records are supported by the interpreter and textual IR. Collections and
-indexing, modules/imports, structured errors/results, and project
-configuration remain deferred.
+Records are supported by the interpreter and textual IR. Arrays and indexing
+are supported as described below; maps, modules/imports, structured
+errors/results, and project configuration remain deferred.
+
+## Arrays and indexing
+
+Array literals use square brackets and may be empty, nested, or assigned an
+element type:
+
+```vex
+let numbers: [i32] = [1, 2, 3];
+let matrix = [[1, 2], [3, 4]];
+numbers[1] = 9;
+numbers[1];
+```
+
+Indices are zero-based `i32` values. Indexing a non-array, using a non-integer
+index, or selecting an out-of-bounds element is an error. Arrays are the only
+collection currently implemented; maps and generics are explicitly deferred.
 
 ## Control flow
 

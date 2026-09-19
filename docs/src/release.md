@@ -4,6 +4,9 @@ Vex `0.1.0-alpha.1` is an interpreter and typed textual-IR prototype. A
 release publishes the Cargo source package; it does **not** publish a native
 binary or claim production compiler support.
 
+Typed arrays and indexing are included in this alpha's interpreter and
+textual-IR scope. Maps and generics remain intentionally deferred.
+
 ## Publish checklist
 
 1. Confirm the intended version in `Cargo.toml`, then update the matching
@@ -29,6 +32,6 @@ given source tree and lockfile.
 ## Current blockers
 
 A production `0.1` compiler release is blocked by the absent verified native
-backend, collections, modules, and project/package management. Records are
-supported in the alpha interpreter and textual IR; the remaining items are
-deliberate roadmap work, not alpha release failures.
+backend, maps, generics, modules, and project/package management. Arrays and
+records are supported in the alpha interpreter and textual IR; the remaining
+items are deliberate roadmap work, not alpha release failures.

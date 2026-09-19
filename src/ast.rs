@@ -19,6 +19,7 @@ pub enum Type {
     Unit,
     Res, // The unique Vex resource type
     Custom(String),
+    Array(Box<Type>),
 }
 
 #[derive(Debug, Clone, PartialEq)] // Add PartialEq here
@@ -52,6 +53,8 @@ pub enum Expr {
     Call(String, Vec<Expr>),
     Record(String, Vec<(String, Expr)>),
     Field(Box<Expr>, String),
+    Array(Vec<Expr>),
+    Index(Box<Expr>, Box<Expr>),
 }
 
 #[allow(clippy::enum_variant_names)]
@@ -74,6 +77,11 @@ pub enum Stmt {
     },
     Assign {
         name: String,
+        value: Expr,
+    },
+    AssignIndex {
+        name: String,
+        indices: Vec<Expr>,
         value: Expr,
     },
     ExprStmt(Expr),
@@ -99,4 +107,5 @@ pub enum Value {
     String(String),
     Unit,
     Record(String, BTreeMap<String, Value>),
+    Array(Vec<Value>),
 }

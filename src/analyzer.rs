@@ -74,6 +74,7 @@ impl SemanticAnalyzer {
                 | Type::String
                 | Type::Unit
                 | Type::Custom(_)
+                | Type::Array(_)
         ) {
             Ok(())
         } else {
@@ -153,6 +154,29 @@ impl SemanticAnalyzer {
                     return Err(format!("type mismatch in assignment to `{name}`"));
                 }
             }
+            Stmt::AssignIndex {
+                name,
+                indices,
+                value,
+            } => {
+                let mut ty = scope
+                    .get(name)
+                    .ok_or_else(|| format!("undefined variable `{name}`"))?
+                    .clone();
+                for index in indices {
+                    if self.check_expr(index, scope, loops, ret)? != Type::I32 {
+                        return Err("array index must be an i32".into());
+                    }
+                    ty = match ty {
+                        Type::Array(element) => *element,
+                        other => return Err(format!("indexing requires an array, got {other:?}")),
+                    };
+                }
+                let vt = self.check_expr(value, scope, loops, ret)?;
+                if !Self::compatible(&ty, &vt) {
+                    return Err("type mismatch in array assignment".into());
+                }
+            }
             Stmt::ExprStmt(e) => {
                 self.check_expr(e, scope, loops, ret)?;
             }
@@ -200,6 +224,10 @@ impl SemanticAnalyzer {
             || *a == Type::Inferred
             || *b == Type::Inferred
             || matches!((a, b), (Type::I32, Type::U64) | (Type::U64, Type::I32))
+            || match (a, b) {
+                (Type::Array(x), Type::Array(y)) => Self::compatible(x, y),
+                _ => false,
+            }
     }
     fn check_expr(
         &self,
@@ -248,6 +276,28 @@ impl SemanticAnalyzer {
                     .and_then(|fields| fields.iter().find(|(n, _)| n == field))
                     .map(|(_, ty)| ty.clone())
                     .ok_or_else(|| format!("unknown field `{field}` on record `{name}`"))
+            }
+            Expr::Array(values) => {
+                let mut element = Type::Inferred;
+                for value in values {
+                    let ty = self.check_expr(value, scope, loops, ret)?;
+                    if element == Type::Inferred {
+                        element = ty;
+                    } else if !Self::compatible(&element, &ty) {
+                        return Err("array elements must have compatible types".into());
+                    }
+                }
+                Ok(Type::Array(Box::new(element)))
+            }
+            Expr::Index(value, index) => {
+                let ty = self.check_expr(value, scope, loops, ret)?;
+                if self.check_expr(index, scope, loops, ret)? != Type::I32 {
+                    return Err("array index must be an i32".into());
+                }
+                match ty {
+                    Type::Array(element) => Ok(*element),
+                    other => Err(format!("indexing requires an array, got {other:?}")),
+                }
             }
             Expr::Var(n) => scope
                 .get(n)

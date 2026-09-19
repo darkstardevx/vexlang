@@ -63,5 +63,14 @@ This file records delivered phases. Forward-looking work is tracked in
 ## Current release posture
 
 The repository is public-ready for the labeled alpha scope. It is not yet a
-production compiler release: native code generation, user-defined types,
-collections, modules, and project/package management remain future work.
+production compiler release: native code generation, maps, generics, modules,
+and project/package management remain future work.
+
+## Phase 9 — Typed collections and indexing
+
+- Added typed array literals, including empty and nested arrays.
+- Added analyzer checks for element types, integer indices, and indexed
+  assignment.
+- Added evaluator indexing, nested mutation, and bounds diagnostics.
+- Added typed textual-IR array and index lowering.
+- Maps and generics are explicitly deferred.

@@ -77,15 +77,31 @@ fn build_stmt(pair: Pair<Rule>) -> Result<Stmt, BuildError> {
         }
         Rule::assign => {
             let mut parts = inner.into_inner();
-            let name = parts
+            let target = parts
                 .next()
-                .ok_or_else(|| BuildError("assignment is missing a name".into()))?
-                .as_str()
-                .to_string();
-            let value = build_expr(parts.next().ok_or_else(|| {
-                BuildError(format!("assignment to `{name}` is missing a value"))
-            })?)?;
-            Ok(Stmt::Assign { name, value })
+                .ok_or_else(|| BuildError("assignment is missing a target".into()))?;
+            let (name, indices) = if target.as_rule() == Rule::assign_target {
+                let mut p = target.into_inner();
+                let name = p.next().unwrap().as_str().to_string();
+                let indices = p.map(build_expr).collect::<Result<Vec<_>, _>>()?;
+                (name, indices)
+            } else {
+                (target.as_str().to_string(), Vec::new())
+            };
+            let value = build_expr(
+                parts
+                    .next()
+                    .ok_or_else(|| BuildError("assignment is missing a value".into()))?,
+            )?;
+            if indices.is_empty() {
+                Ok(Stmt::Assign { name, value })
+            } else {
+                Ok(Stmt::AssignIndex {
+                    name,
+                    indices,
+                    value,
+                })
+            }
         }
         Rule::if_stmt => {
             let mut parts = inner.into_inner();
@@ -176,6 +192,9 @@ fn build_stmt(pair: Pair<Rule>) -> Result<Stmt, BuildError> {
 }
 
 fn parse_type(name: &str) -> Type {
+    if name.starts_with('[') && name.ends_with(']') {
+        return Type::Array(Box::new(parse_type(&name[1..name.len() - 1])));
+    }
     match name {
         "i32" => Type::I32,
         "u64" => Type::U64,
@@ -312,6 +331,31 @@ impl<'a> TextParser<'a> {
             self.pos += 1;
             return Ok(Expr::String(value));
         }
+        if self.peek() == Some(b'[') {
+            self.pos += 1;
+            let mut values = Vec::new();
+            self.ws();
+            if self.peek() != Some(b']') {
+                loop {
+                    values.push(self.binary(0)?);
+                    self.ws();
+                    if self.peek() != Some(b',') {
+                        break;
+                    }
+                    self.pos += 1;
+                    self.ws();
+                    if self.peek() == Some(b']') {
+                        break;
+                    }
+                }
+            }
+            self.ws();
+            if self.peek() != Some(b']') {
+                return Err(BuildError("missing `]` in array literal".into()));
+            }
+            self.pos += 1;
+            return Ok(Expr::Array(values));
+        }
         if self.peek().is_some_and(|c| c.is_ascii_digit()) {
             let start = self.pos;
             while self.peek().is_some_and(|c| c.is_ascii_digit()) {
@@ -402,11 +446,35 @@ impl<'a> TextParser<'a> {
                     }
                     self.pos += 1;
                     Expr::Call(name.into_owned(), args)
+                } else if self.peek() == Some(b'[') {
+                    let mut value = Expr::Var(name.into_owned());
+                    while self.peek() == Some(b'[') {
+                        self.pos += 1;
+                        let index = self.binary(0)?;
+                        self.ws();
+                        if self.peek() != Some(b']') {
+                            return Err(BuildError("missing `]` in index expression".into()));
+                        }
+                        self.pos += 1;
+                        value = Expr::Index(Box::new(value), Box::new(index));
+                    }
+                    value
                 } else {
                     Expr::Var(name.into_owned())
                 };
                 loop {
                     self.ws();
+                    if self.peek() == Some(b'[') {
+                        self.pos += 1;
+                        let index = self.binary(0)?;
+                        self.ws();
+                        if self.peek() != Some(b']') {
+                            return Err(BuildError("missing `]` in index expression".into()));
+                        }
+                        self.pos += 1;
+                        value = Expr::Index(Box::new(value), Box::new(index));
+                        continue;
+                    }
                     if self.peek() != Some(b'.') {
                         break;
                     }
@@ -502,6 +570,7 @@ fn build_expr(pair: Pair<Rule>) -> Result<Expr, BuildError> {
                 raw.replace("\\\"", "\"").replace("\\\\", "\\"),
             ))
         }
+        Rule::array => TextParser::new(pair.as_str()).parse(),
         Rule::ident if pair.as_str() == "true" => Ok(Expr::Bool(true)),
         Rule::ident if pair.as_str() == "false" => Ok(Expr::Bool(false)),
         Rule::ident => Ok(Expr::Var(pair.as_str().to_string())),

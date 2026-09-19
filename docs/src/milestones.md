@@ -43,8 +43,8 @@ a usable language. Each milestone has an explicit quality gate.
 ## Milestone 5 — Build a standard library
 
 - Add strings and safe console I/O (`print` and `println`).
-- Collections, files, errors, and modules are deferred to a later library
-  milestone to avoid unsafe or broad dependencies.
+- Arrays are covered by the typed-collections milestone; maps, files, errors,
+  and modules are deferred to later milestones.
 
 **Status:** Minimal string and console library implemented.
 
@@ -114,3 +114,9 @@ Native binaries are intentionally not produced.
 release as an interpreter and typed-IR prototype. The MIT license and security
 contact are in place. A production `0.1` compiler release remains blocked by
 the absent native backend and deferred language features.
+
+## Milestone 12 — Typed collections
+
+**Status:** Complete for arrays: literals, typed annotations, nested and empty
+arrays, indexing, mutation, semantic diagnostics, and textual IR lowering.
+Maps, generics, and structured error/result values remain deferred.

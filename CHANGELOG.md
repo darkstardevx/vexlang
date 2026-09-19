@@ -9,6 +9,9 @@
 
 ## Unreleased (alpha)
 
+- Added typed array collections: `[1, 2, 3]`, `[i32]` annotations, empty and
+  nested arrays, zero-based indexing, indexed mutation, bounds/type diagnostics,
+  and textual IR lowering. Maps and generics remain deferred.
 - Stabilized parsing and AST construction for the core expression language.
 - Added precedence-aware arithmetic, comparisons, unary minus, variables, and
   `let` declarations.

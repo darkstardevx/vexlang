@@ -15,7 +15,8 @@ ident = @{ !(KW_LET | KW_IF | KW_ELSE | KW_WHILE | KW_BREAK | KW_CONTINUE | KW_F
   ~ (ASCII_ALPHA | "_") ~ (ASCII_ALPHANUMERIC | "_")* }
 int = @{ ASCII_DIGIT+ }
 string = @{ "\"" ~ ( "\\\"" | "\\\\" | !"\"" ~ ANY )* ~ "\"" }
-type_name = { "i32" | "u64" | "f64" | "bool" | "string" | "res" | ident }
+type_name = { array_type | "i32" | "u64" | "f64" | "bool" | "string" | "res" | ident }
+array_type = { "[" ~ type_name ~ "]" }
 field_decl = { ident ~ ":" ~ type_name }
 record_decl = { "record" ~ ident ~ "{" ~ (field_decl ~ ("," ~ field_decl)*)? ~ ","? ~ "}" }
 
@@ -24,7 +25,9 @@ record_field = { ident ~ ":" ~ expr }
 record_name = @{ !("true" | "false") ~ ident }
 record_expr = { record_name ~ "{" ~ (record_field ~ ("," ~ record_field)*)? ~ ","? ~ "}" }
 field_access = { (call | ident | paren) ~ ("." ~ ident)+ }
-atom = _{ int | string | if_expr | block | record_expr | field_access | call | ident | paren }
+array = { "[" ~ (expr ~ ("," ~ expr)*)? ~ ","? ~ "]" }
+index_access = { (call | ident | paren | array) ~ ("[" ~ expr ~ "]")+ }
+atom = _{ int | string | if_expr | block | record_expr | field_access | index_access | call | array | ident | paren }
 call = { ident ~ "(" ~ (expr ~ ("," ~ expr)*)? ~ ")" }
 paren = { "(" ~ expr ~ ")" }
 expr = { term ~ (bin_op ~ term)* }
@@ -39,7 +42,8 @@ break_stmt = { KW_BREAK ~ ";" }
 continue_stmt = { KW_CONTINUE ~ ";" }
 return_stmt = { KW_RETURN ~ expr? ~ ";" }
 let_decl = { KW_LET ~ ident ~ (":" ~ type_name)? ~ "=" ~ expr ~ ";" }
-assign = { ident ~ "=" ~ expr ~ ";" }
+assign_target = { ident ~ ("[" ~ expr ~ "]")+ }
+assign = { assign_target ~ "=" ~ expr ~ ";" | ident ~ "=" ~ expr ~ ";" }
 param = { ident ~ ":" ~ type_name }
 fn_decl = { KW_FN ~ ident ~ "(" ~ (param ~ ("," ~ param)*)? ~ ")" ~ ("->" ~ type_name)? ~ block }
 expr_stmt = { expr ~ ";" }

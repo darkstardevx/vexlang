@@ -15,6 +15,7 @@ pub enum IrType {
     String,
     Unit,
     Record(String),
+    Array(Box<IrType>),
 }
 
 impl std::fmt::Display for IrType {
@@ -26,6 +27,7 @@ impl std::fmt::Display for IrType {
             Self::String => "string",
             Self::Unit => "unit",
             Self::Record(name) => return write!(f, "record {name}"),
+            Self::Array(element) => return write!(f, "[{element}]"),
         })
     }
 }
@@ -53,6 +55,8 @@ pub enum IrExprKind {
     Call(String, Vec<IrExpr>),
     Record(String, Vec<(String, IrExpr)>),
     Field(Box<IrExpr>, String),
+    Array(Vec<IrExpr>),
+    Index(Box<IrExpr>, Box<IrExpr>),
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -69,6 +73,11 @@ pub enum IrStmt {
     },
     Assign {
         name: String,
+        value: IrExpr,
+    },
+    AssignIndex {
+        name: String,
+        indices: Vec<IrExpr>,
         value: IrExpr,
     },
     Expr(IrExpr),
@@ -163,6 +172,7 @@ fn ir_type(ty: &Type) -> Result<IrType, LowerError> {
         Type::String => Ok(IrType::String),
         Type::Unit => Ok(IrType::Unit),
         Type::Custom(name) => Ok(IrType::Record(name.clone())),
+        Type::Array(element) => Ok(IrType::Array(Box::new(ir_type(element)?))),
         other => Err(LowerError::Unsupported(format!(
             "IR lowering does not support type annotation {other:?}"
         ))),
@@ -219,6 +229,18 @@ fn lower_stmt(stmt: &Stmt, functions: &Functions, scope: &mut Scope) -> Result<I
             name: name.clone(),
             value: lower_expr(value, functions, scope)?,
         }),
+        Stmt::AssignIndex {
+            name,
+            indices,
+            value,
+        } => Ok(IrStmt::AssignIndex {
+            name: name.clone(),
+            indices: indices
+                .iter()
+                .map(|x| lower_expr(x, functions, scope))
+                .collect::<Result<_, _>>()?,
+            value: lower_expr(value, functions, scope)?,
+        }),
         Stmt::ExprStmt(expr) => Ok(IrStmt::Expr(lower_expr(expr, functions, scope)?)),
         Stmt::If {
             condition,
@@ -252,6 +274,26 @@ fn lower_expr(expr: &Expr, functions: &Functions, scope: &mut Scope) -> Result<I
         Expr::Int(value) => (IrType::I32, IrExprKind::Int(*value)),
         Expr::Bool(value) => (IrType::Bool, IrExprKind::Bool(*value)),
         Expr::String(value) => (IrType::String, IrExprKind::String(value.clone())),
+        Expr::Array(values) => {
+            let values = values
+                .iter()
+                .map(|x| lower_expr(x, functions, scope))
+                .collect::<Result<Vec<_>, _>>()?;
+            let ty = values
+                .first()
+                .map(|x| IrType::Array(Box::new(x.ty.clone())))
+                .unwrap_or(IrType::Array(Box::new(IrType::Unit)));
+            (ty, IrExprKind::Array(values))
+        }
+        Expr::Index(value, index) => {
+            let value = lower_expr(value, functions, scope)?;
+            let index = lower_expr(index, functions, scope)?;
+            let ty = match &value.ty {
+                IrType::Array(element) => (**element).clone(),
+                _ => return Err(LowerError::Invalid("indexing requires an array".into())),
+            };
+            (ty, IrExprKind::Index(Box::new(value), Box::new(index)))
+        }
         Expr::Record(name, fields) => {
             let fields = fields
                 .iter()
@@ -399,6 +441,21 @@ fn render_stmt(stmt: &IrStmt, indent: usize, out: &mut String) {
             render_expr(value, 0, out);
             out.push_str(";\n");
         }
+        IrStmt::AssignIndex {
+            name,
+            indices,
+            value,
+        } => {
+            out.push_str(&format!("{pad}{name}"));
+            for index in indices {
+                out.push('[');
+                render_expr(index, 0, out);
+                out.push(']');
+            }
+            out.push_str(" = ");
+            render_expr(value, 0, out);
+            out.push_str(";\n");
+        }
         IrStmt::Expr(expr) => {
             out.push_str(&pad);
             render_expr(expr, 0, out);
@@ -442,6 +499,10 @@ fn display_expr(expr: &IrExpr) -> String {
         IrExprKind::Call(name, args) => format!("{name}({} args)", args.len()),
         IrExprKind::Record(name, fields) => format!("{name} {{ {} fields }}", fields.len()),
         IrExprKind::Field(value, field) => format!("{}.{}", display_expr(value), field),
+        IrExprKind::Array(values) => format!("[{} items]", values.len()),
+        IrExprKind::Index(value, index) => {
+            format!("{}[{}]", display_expr(value), display_expr(index))
+        }
     }
 }
 

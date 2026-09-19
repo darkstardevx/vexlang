@@ -11,6 +11,7 @@ The interpreter currently supports:
 * variables, assignment, blocks, `if`/`else`, `while`, `break`, and `continue`;
 * typed functions, returns, recursion, and bounded call depth;
 * user-defined record declarations, construction, validated fields, and access;
+* typed arrays, nested/empty literals, indexing, mutation, and bounds checks;
 * `print` and `println`;
 * structured diagnostics and the `check`, `run`, `fmt`, `test`, `build`, and
   `ir` commands;
@@ -18,7 +19,7 @@ The interpreter currently supports:
 
 ## Deferred or intentionally unsupported
 
-Floating point values, resources (`res`), collections, filesystem access,
+Floating point values, resources (`res`), maps, generics, filesystem access,
 modules, project configuration, and lockfile semantics are deferred. Record
 types are the first supported user-defined type. Milestone 9's lightweight
 compatibility, diagnostic,
@@ -36,5 +37,5 @@ native code generation is not.
 Vex is suitable for a labeled `0.1.0-alpha.1` public release as an interpreter
 and typed-IR prototype. It is not presented as a production compiler. The MIT
 license grants redistribution rights, and security reports should be sent to
-`cybercore.sh@gmail.com`. A native backend, fuzzing service, collections,
+`cybercore.sh@gmail.com`. A native backend, fuzzing service, maps, generics,
 modules, and project configuration remain post-alpha work.

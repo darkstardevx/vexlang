@@ -85,6 +85,32 @@ fn eval_stmt(s: &Stmt, e: &mut Env, f: &Functions, d: usize) -> Result<Control, 
             e.insert(name.clone(), v.clone());
             Ok(Control::Value(v))
         }
+        Stmt::AssignIndex {
+            name,
+            indices,
+            value,
+        } => {
+            let v = value_of(eval_expr(value, e, f, d)?)?;
+            let indexes = indices
+                .iter()
+                .map(|index| {
+                    let value = value_of(eval_expr(index, e, f, d)?)?;
+                    match value {
+                        Value::Int(i) if i >= 0 => usize::try_from(i).map_err(|_| {
+                            EvalError::TypeError("array index must be a non-negative i32".into())
+                        }),
+                        _ => Err(EvalError::TypeError(
+                            "array index must be a non-negative i32".into(),
+                        )),
+                    }
+                })
+                .collect::<Result<Vec<_>, _>>()?;
+            let array = e
+                .get_mut(name)
+                .ok_or_else(|| EvalError::RuntimeError(format!("undefined variable `{name}`")))?;
+            set_index(array, &indexes, v)?;
+            Ok(Control::Value(array.clone()))
+        }
         Stmt::ExprStmt(x) => eval_expr(x, e, f, d),
         Stmt::Return(x) => Ok(Control::Return(
             x.as_ref()
@@ -130,6 +156,38 @@ fn eval_expr(x: &Expr, e: &mut Env, f: &Functions, d: usize) -> Result<Control, 
         Expr::Int(v) => Ok(Control::Value(Value::Int(*v))),
         Expr::Bool(v) => Ok(Control::Value(Value::Bool(*v))),
         Expr::String(v) => Ok(Control::Value(Value::String(v.clone()))),
+        Expr::Array(values) => Ok(Control::Value(Value::Array(
+            values
+                .iter()
+                .map(|v| eval_expr(v, e, f, d).and_then(value_of))
+                .collect::<Result<Vec<_>, _>>()?,
+        ))),
+        Expr::Index(value, index) => {
+            let value = value_of(eval_expr(value, e, f, d)?)?;
+            let index = value_of(eval_expr(index, e, f, d)?)?;
+            let index = match index {
+                Value::Int(i) if i >= 0 => usize::try_from(i).map_err(|_| {
+                    EvalError::TypeError("array index must be a non-negative i32".into())
+                })?,
+                _ => {
+                    return Err(EvalError::TypeError(
+                        "array index must be a non-negative i32".into(),
+                    ));
+                }
+            };
+            match value {
+                Value::Array(values) => {
+                    values
+                        .get(index)
+                        .cloned()
+                        .map(Control::Value)
+                        .ok_or_else(|| {
+                            EvalError::RuntimeError(format!("array index {index} out of bounds"))
+                        })
+                }
+                _ => Err(EvalError::TypeError("indexing requires an array".into())),
+            }
+        }
         Expr::Record(name, fields) => {
             let mut values = BTreeMap::new();
             for (field, expr) in fields {
@@ -298,6 +356,9 @@ fn validate(n: &str, t: &Type, v: &Value) -> Result<(), EvalError> {
         Type::String => matches!(v, Value::String(_)),
         Type::Unit => matches!(v, Value::Unit),
         Type::Custom(name) => matches!(v, Value::Record(value_name, _) if value_name == name),
+        Type::Array(element) => {
+            matches!(v, Value::Array(values) if values.iter().all(|value| validate(n, element, value).is_ok()))
+        }
         _ => false,
     };
     if ok {
@@ -333,6 +394,24 @@ fn display(v: &Value) -> String {
         Value::Bool(x) => x.to_string(),
         Value::Unit => "()".into(),
         Value::Record(name, fields) => format!("{name}{{{} fields}}", fields.len()),
+        Value::Array(values) => format!("[{} items]", values.len()),
+    }
+}
+fn set_index(array: &mut Value, indices: &[usize], value: Value) -> Result<(), EvalError> {
+    let Some(index) = indices.first() else {
+        return Err(EvalError::RuntimeError("missing array index".into()));
+    };
+    let Value::Array(values) = array else {
+        return Err(EvalError::TypeError("indexing requires an array".into()));
+    };
+    let slot = values
+        .get_mut(*index)
+        .ok_or_else(|| EvalError::RuntimeError(format!("array index {index} out of bounds")))?;
+    if indices.len() == 1 {
+        *slot = value;
+        Ok(())
+    } else {
+        set_index(slot, &indices[1..], value)
     }
 }
 fn bin(a: Value, o: &Op, b: Value) -> Result<Control, EvalError> {

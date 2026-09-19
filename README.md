@@ -55,8 +55,18 @@ let p: Point = Point { x: 2, y: 3 };
 p.x + p.y;
 ```
 
-Strings and `print`/`println` are available in the standard library. Floating
-point, `res`, collections/indexing, filesystem access, modules/imports,
+Strings and `print`/`println` are available in the standard library. Arrays
+support literals, nesting, typed annotations such as `[i32]`, zero-based
+indexing, and indexed assignment:
+
+```vex
+let values: [i32] = [1, 2, 3];
+values[1] = 9;
+values[1];
+```
+
+Maps and generics are explicitly deferred. Floating point, `res`, filesystem
+access, modules/imports,
 structured errors/results, project configuration, and native code generation
 are intentionally deferred.
 
@@ -105,7 +115,8 @@ VEX
 │   └── stable + MSRV quality gates
 ├── 🚧 Phase 9  Language expansion
 │   ├── ✅ user-defined record types
-│   ├── collections and structured errors
+│   ├── ✅ typed arrays and indexing
+│   ├── maps, generics, and structured errors
 │   └── modules and project configuration
 ├── 🔭 Phase 10 Production diagnostics
 │   ├── AST-wide source spans
