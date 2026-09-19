@@ -379,4 +379,36 @@ mod tests {
         );
         assert!(run("u64(-1);").unwrap_err().contains("cannot convert"));
     }
+
+    #[test]
+    fn records_smoke() {
+        assert_eq!(
+            run("record Point { x: i32, y: i32 } let p: Point = Point { x: 2, y: 3 }; p.x + p.y;"),
+            Ok(Value::Int(5))
+        );
+    }
+
+    #[test]
+    fn validates_record_fields() {
+        assert!(
+            run("record Point { x: i32 } Point { y: 1 };")
+                .unwrap_err()
+                .contains("unknown field")
+        );
+        assert!(
+            run("record Point { x: i32, y: i32 } Point { x: 1 };")
+                .unwrap_err()
+                .contains("requires 2 fields")
+        );
+        assert!(
+            run("record Point { x: i32 } Point { x: true };")
+                .unwrap_err()
+                .contains("wrong type")
+        );
+        assert!(
+            run("record Point { x: i32 } let p = Point { x: 1 }; p.missing;")
+                .unwrap_err()
+                .contains("unknown field")
+        );
+    }
 }

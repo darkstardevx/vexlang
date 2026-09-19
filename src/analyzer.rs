@@ -10,6 +10,7 @@ struct Function {
 pub struct SemanticAnalyzer {
     symbols: HashMap<String, Type>,
     functions: HashMap<String, Function>,
+    records: HashMap<String, Vec<(String, Type)>>,
 }
 
 impl SemanticAnalyzer {
@@ -17,10 +18,24 @@ impl SemanticAnalyzer {
         Self {
             symbols: HashMap::new(),
             functions: HashMap::new(),
+            records: HashMap::new(),
         }
     }
     pub fn analyze(&mut self, stmts: &[Stmt]) -> Result<(), String> {
         for s in stmts {
+            if let Stmt::Record { name, fields } = s {
+                if self.records.contains_key(name) {
+                    return Err(format!("duplicate record `{name}`"));
+                }
+                let mut seen = std::collections::HashSet::new();
+                for (field, ty) in fields {
+                    self.check_type(ty)?;
+                    if !seen.insert(field) {
+                        return Err(format!("duplicate field `{field}` in record `{name}`"));
+                    }
+                }
+                self.records.insert(name.clone(), fields.clone());
+            }
             if let Stmt::Function {
                 name,
                 params,
@@ -32,9 +47,9 @@ impl SemanticAnalyzer {
                     return Err(format!("duplicate function `{name}`"));
                 }
                 for (_, t) in params {
-                    Self::check_supported(t)?;
+                    self.check_type(t)?;
                 }
-                Self::check_supported(return_type)?;
+                self.check_type(return_type)?;
                 self.functions.insert(
                     name.clone(),
                     Function {
@@ -52,12 +67,27 @@ impl SemanticAnalyzer {
     fn check_supported(t: &Type) -> Result<(), String> {
         if matches!(
             t,
-            Type::Inferred | Type::I32 | Type::U64 | Type::Bool | Type::String | Type::Unit
+            Type::Inferred
+                | Type::I32
+                | Type::U64
+                | Type::Bool
+                | Type::String
+                | Type::Unit
+                | Type::Custom(_)
         ) {
             Ok(())
         } else {
             Err(format!("unsupported type annotation: {t:?}"))
         }
+    }
+    fn check_type(&self, t: &Type) -> Result<(), String> {
+        Self::check_supported(t)?;
+        if let Type::Custom(name) = t {
+            if !self.records.contains_key(name) {
+                return Err(format!("undefined record `{name}`"));
+            }
+        }
+        Ok(())
     }
     fn check_stmts(
         &self,
@@ -79,6 +109,7 @@ impl SemanticAnalyzer {
         ret: Option<&Type>,
     ) -> Result<(), String> {
         match s {
+            Stmt::Record { .. } => {}
             Stmt::Function {
                 params,
                 body,
@@ -98,7 +129,7 @@ impl SemanticAnalyzer {
                 }
             }
             Stmt::Let { name, ty, value } => {
-                Self::check_supported(ty)?;
+                self.check_type(ty)?;
                 let vt = self.check_expr(value, scope, loops, ret)?;
                 let final_t = if *ty == Type::Inferred {
                     vt.clone()
@@ -181,6 +212,43 @@ impl SemanticAnalyzer {
             Expr::Int(_) => Ok(Type::I32),
             Expr::Bool(_) => Ok(Type::Bool),
             Expr::String(_) => Ok(Type::String),
+            Expr::Record(name, fields) => {
+                let schema = self
+                    .records
+                    .get(name)
+                    .ok_or_else(|| format!("undefined record `{name}`"))?;
+                if fields.len() != schema.len() {
+                    return Err(format!("record `{name}` requires {} fields", schema.len()));
+                }
+                for (field, value) in fields {
+                    let expected = schema
+                        .iter()
+                        .find(|(n, _)| n == field)
+                        .ok_or_else(|| format!("unknown field `{field}` on record `{name}`"))?;
+                    if !Self::compatible(&expected.1, &self.check_expr(value, scope, loops, ret)?) {
+                        return Err(format!(
+                            "field `{field}` on record `{name}` has the wrong type"
+                        ));
+                    }
+                }
+                for (field, _) in schema {
+                    if !fields.iter().any(|(n, _)| n == field) {
+                        return Err(format!("missing field `{field}` on record `{name}`"));
+                    }
+                }
+                Ok(Type::Custom(name.clone()))
+            }
+            Expr::Field(value, field) => {
+                let ty = self.check_expr(value, scope, loops, ret)?;
+                let Type::Custom(name) = ty else {
+                    return Err(format!("field access requires a record, got {ty:?}"));
+                };
+                self.records
+                    .get(&name)
+                    .and_then(|fields| fields.iter().find(|(n, _)| n == field))
+                    .map(|(_, ty)| ty.clone())
+                    .ok_or_else(|| format!("unknown field `{field}` on record `{name}`"))
+            }
             Expr::Var(n) => scope
                 .get(n)
                 .cloned()

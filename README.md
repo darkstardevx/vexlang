@@ -46,10 +46,19 @@ are rejected outside loops. Loops stop with a runtime error after one million
 iterations to prevent runaway programs.
 
 The `i32`, `u64`, and `bool` annotations are supported. Functions support typed
-parameters, returns, recursion, and bounded call depth. Strings and
-`print`/`println` are available in the standard library. Floating point,
-`res`, custom types, collections, filesystem access, modules, and native code
-generation are intentionally deferred.
+parameters, returns, recursion, and bounded call depth. User-defined records
+support declarations, construction, validated fields, and field access:
+
+```vex
+record Point { x: i32, y: i32 }
+let p: Point = Point { x: 2, y: 3 };
+p.x + p.y;
+```
+
+Strings and `print`/`println` are available in the standard library. Floating
+point, `res`, collections/indexing, filesystem access, modules/imports,
+structured errors/results, project configuration, and native code generation
+are intentionally deferred.
 
 ## 🧪 Quick start
 
@@ -94,8 +103,8 @@ VEX
 │   ├── release artifacts and version checks
 │   ├── stronger fuzzing and benchmarks
 │   └── stable + MSRV quality gates
-├── 🔭 Phase 9  Language expansion
-│   ├── user-defined types and records
+├── 🚧 Phase 9  Language expansion
+│   ├── ✅ user-defined record types
 │   ├── collections and structured errors
 │   └── modules and project configuration
 ├── 🔭 Phase 10 Production diagnostics

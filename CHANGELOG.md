@@ -30,6 +30,11 @@ Vex remains an alpha prototype; syntax and APIs may change.
 
 ## Unreleased
 
+- Added user-defined record declarations (`record Name { field: type, ... }`),
+  record construction, validated field access, interpreter support, and
+  textual-IR lowering. Collections, modules, structured errors/results, and
+  project configuration remain deferred.
+
 - Added typed function declarations, calls, returns, recursion, scoped
   parameters, argument/return checking, and call-depth protection.
 - Added distinct `u64` runtime values and checked `i32`/`u64` conversions.

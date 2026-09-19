@@ -14,6 +14,7 @@ pub enum IrType {
     Bool,
     String,
     Unit,
+    Record(String),
 }
 
 impl std::fmt::Display for IrType {
@@ -24,6 +25,7 @@ impl std::fmt::Display for IrType {
             Self::Bool => "bool",
             Self::String => "string",
             Self::Unit => "unit",
+            Self::Record(name) => return write!(f, "record {name}"),
         })
     }
 }
@@ -49,11 +51,17 @@ pub enum IrExprKind {
         else_branch: Option<Box<IrExpr>>,
     },
     Call(String, Vec<IrExpr>),
+    Record(String, Vec<(String, IrExpr)>),
+    Field(Box<IrExpr>, String),
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum IrStmt {
     Function(IrFunction),
+    Record {
+        name: String,
+        fields: Vec<(String, IrType)>,
+    },
     Let {
         name: String,
         ty: IrType,
@@ -154,6 +162,7 @@ fn ir_type(ty: &Type) -> Result<IrType, LowerError> {
         Type::Bool => Ok(IrType::Bool),
         Type::String => Ok(IrType::String),
         Type::Unit => Ok(IrType::Unit),
+        Type::Custom(name) => Ok(IrType::Record(name.clone())),
         other => Err(LowerError::Unsupported(format!(
             "IR lowering does not support type annotation {other:?}"
         ))),
@@ -165,6 +174,13 @@ type Scope = HashMap<String, IrType>;
 
 fn lower_stmt(stmt: &Stmt, functions: &Functions, scope: &mut Scope) -> Result<IrStmt, LowerError> {
     match stmt {
+        Stmt::Record { name, fields } => Ok(IrStmt::Record {
+            name: name.clone(),
+            fields: fields
+                .iter()
+                .map(|(n, t)| Ok((n.clone(), ir_type(t)?)))
+                .collect::<Result<_, _>>()?,
+        }),
         Stmt::Function {
             name,
             params,
@@ -236,6 +252,24 @@ fn lower_expr(expr: &Expr, functions: &Functions, scope: &mut Scope) -> Result<I
         Expr::Int(value) => (IrType::I32, IrExprKind::Int(*value)),
         Expr::Bool(value) => (IrType::Bool, IrExprKind::Bool(*value)),
         Expr::String(value) => (IrType::String, IrExprKind::String(value.clone())),
+        Expr::Record(name, fields) => {
+            let fields = fields
+                .iter()
+                .map(|(field, value)| Ok((field.clone(), lower_expr(value, functions, scope)?)))
+                .collect::<Result<Vec<_>, LowerError>>()?;
+            (
+                IrType::Record(name.clone()),
+                IrExprKind::Record(name.clone(), fields),
+            )
+        }
+        Expr::Field(value, field) => {
+            let value = lower_expr(value, functions, scope)?;
+            let ty = match &value.ty {
+                IrType::Record(name) => IrType::Record(name.clone()),
+                _ => return Err(LowerError::Invalid("field access requires a record".into())),
+            };
+            (ty, IrExprKind::Field(Box::new(value), field.clone()))
+        }
         Expr::Var(name) => (
             scope
                 .get(name)
@@ -333,6 +367,14 @@ pub fn render(program: &IrProgram) -> String {
 fn render_stmt(stmt: &IrStmt, indent: usize, out: &mut String) {
     let pad = "  ".repeat(indent);
     match stmt {
+        IrStmt::Record { name, fields } => {
+            let fields = fields
+                .iter()
+                .map(|(field, ty)| format!("{field}: {ty}"))
+                .collect::<Vec<_>>()
+                .join(", ");
+            out.push_str(&format!("{pad}record {name} {{ {fields} }}\n"));
+        }
         IrStmt::Function(function) => {
             let params = function
                 .params
@@ -398,6 +440,8 @@ fn display_expr(expr: &IrExpr) -> String {
         IrExprKind::Block(_, _) => "{ ... }".into(),
         IrExprKind::If { .. } => "if ...".into(),
         IrExprKind::Call(name, args) => format!("{name}({} args)", args.len()),
+        IrExprKind::Record(name, fields) => format!("{name} {{ {} fields }}", fields.len()),
+        IrExprKind::Field(value, field) => format!("{}.{}", display_expr(value), field),
     }
 }
 

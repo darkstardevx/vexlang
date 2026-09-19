@@ -45,6 +45,10 @@ fn compatibility_corpus_runs_and_lowers() {
             "Int(7)",
         ),
         ("let value: u64 = u64(4); value == u64(4);", "Bool(true)"),
+        (
+            "record Point { x: i32, y: i32 } let p: Point = Point { x: 2, y: 3 }; p.x + p.y;",
+            "Int(5)",
+        ),
     ];
 
     for (source, expected) in cases {

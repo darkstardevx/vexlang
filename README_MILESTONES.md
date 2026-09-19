@@ -18,10 +18,15 @@ features.
 
 ## Milestone 9 — Language expansion
 
-- Add user-defined types and records.
+- Add user-defined types and records. **Records are complete:** declarations,
+  construction, field access, semantic field/type validation, interpreter
+  evaluation, and textual-IR lowering are covered by unit and CLI tests.
 - Add collections and indexing.
 - Add a structured error/result model.
 - Define modules, imports, and project configuration.
+
+Collections/indexing, structured error/result values, modules/imports, and
+project configuration remain explicitly deferred.
 
 ## Milestone 12 — Production diagnostics
 

@@ -6,6 +6,8 @@
 //! # Tag reference doc in /home/raven/devspace/docs/tags/TAG_API.md
 //!
 
+use std::collections::BTreeMap;
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum Type {
     Inferred,
@@ -48,6 +50,8 @@ pub enum Expr {
         else_branch: Option<Box<Expr>>,
     },
     Call(String, Vec<Expr>),
+    Record(String, Vec<(String, Expr)>),
+    Field(Box<Expr>, String),
 }
 
 #[allow(clippy::enum_variant_names)]
@@ -58,6 +62,10 @@ pub enum Stmt {
         params: Vec<(String, Type)>,
         return_type: Type,
         body: Expr,
+    },
+    Record {
+        name: String,
+        fields: Vec<(String, Type)>,
     },
     Let {
         name: String,
@@ -90,4 +98,5 @@ pub enum Value {
     Bool(bool),
     String(String),
     Unit,
+    Record(String, BTreeMap<String, Value>),
 }

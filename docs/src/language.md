@@ -17,7 +17,7 @@ let bytes: u64 = u64(9);
 
 Identifiers begin with a letter or `_` and may contain letters, digits, and
 underscores. The keywords `let`, `if`, `else`, `while`, `break`, `continue`,
-`fn`, and `return` cannot be used as identifiers.
+`fn`, `return`, and `record` cannot be used as identifiers.
 
 ## Expressions and operators
 
@@ -48,6 +48,21 @@ index = index + 1;
 `i32` values must fit the signed 32-bit range. `u64` values are represented
 separately at runtime and cannot contain negative values. Explicit conversions
 are available as `i32(value)` and `u64(value)`.
+
+## Records
+
+Records declare fixed named fields. Construction must provide every field
+exactly once with a compatible value, and unknown field access is rejected:
+
+```vex
+record Point { x: i32, y: i32 }
+let point: Point = Point { x: 2, y: 3 };
+point.x + point.y;
+```
+
+Records are supported by the interpreter and textual IR. Collections and
+indexing, modules/imports, structured errors/results, and project
+configuration remain deferred.
 
 ## Control flow
 

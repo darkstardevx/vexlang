@@ -59,6 +59,22 @@ fn build_stmt(pair: Pair<Rule>) -> Result<Stmt, BuildError> {
                 value: build_expr(expr_pair)?,
             })
         }
+        Rule::record_decl => {
+            let mut parts = inner.into_inner();
+            let name = parts
+                .next()
+                .ok_or_else(|| BuildError("record is missing a name".into()))?
+                .as_str()
+                .to_string();
+            let mut fields = Vec::new();
+            for field in parts {
+                let mut p = field.into_inner();
+                let field_name = p.next().unwrap().as_str().to_string();
+                let ty = parse_type(p.next().unwrap().as_str());
+                fields.push((field_name, ty));
+            }
+            Ok(Stmt::Record { name, fields })
+        }
         Rule::assign => {
             let mut parts = inner.into_inner();
             let name = parts
@@ -323,7 +339,49 @@ impl<'a> TextParser<'a> {
             "false" => Ok(Expr::Bool(false)),
             _ => {
                 self.ws();
-                if self.peek() == Some(b'(') {
+                let mut value = if self.peek() == Some(b'{') {
+                    self.pos += 1;
+                    let mut fields = Vec::new();
+                    self.ws();
+                    if self.peek() != Some(b'}') {
+                        loop {
+                            self.ws();
+                            let field_start = self.pos;
+                            while self
+                                .peek()
+                                .is_some_and(|c| c.is_ascii_alphanumeric() || c == b'_')
+                            {
+                                self.pos += 1;
+                            }
+                            if self.pos == field_start || self.peek() != Some(b':') {
+                                return Err(BuildError(
+                                    "record field requires `name: value`".into(),
+                                ));
+                            }
+                            let field = String::from_utf8_lossy(&self.input[field_start..self.pos])
+                                .into_owned();
+                            self.pos += 1;
+                            let expr = self.binary(0)?;
+                            fields.push((field, expr));
+                            self.ws();
+                            if self.peek() == Some(b',') {
+                                self.pos += 1;
+                                self.ws();
+                                if self.peek() == Some(b'}') {
+                                    break;
+                                }
+                                continue;
+                            }
+                            break;
+                        }
+                    }
+                    self.ws();
+                    if self.peek() != Some(b'}') {
+                        return Err(BuildError("missing `}` in record construction".into()));
+                    }
+                    self.pos += 1;
+                    Expr::Record(name.into_owned(), fields)
+                } else if self.peek() == Some(b'(') {
                     self.pos += 1;
                     let mut args = Vec::new();
                     self.ws();
@@ -343,10 +401,30 @@ impl<'a> TextParser<'a> {
                         return Err(BuildError("missing `)` in call".into()));
                     }
                     self.pos += 1;
-                    Ok(Expr::Call(name.into(), args))
+                    Expr::Call(name.into_owned(), args)
                 } else {
-                    Ok(Expr::Var(name.into()))
+                    Expr::Var(name.into_owned())
+                };
+                loop {
+                    self.ws();
+                    if self.peek() != Some(b'.') {
+                        break;
+                    }
+                    self.pos += 1;
+                    let start = self.pos;
+                    while self
+                        .peek()
+                        .is_some_and(|c| c.is_ascii_alphanumeric() || c == b'_')
+                    {
+                        self.pos += 1;
+                    }
+                    if start == self.pos {
+                        return Err(BuildError("field access requires a field name".into()));
+                    }
+                    let field = String::from_utf8_lossy(&self.input[start..self.pos]).into_owned();
+                    value = Expr::Field(Box::new(value), field);
                 }
+                Ok(value)
             }
         }
     }

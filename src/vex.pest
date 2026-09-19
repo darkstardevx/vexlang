@@ -9,15 +9,22 @@ KW_BREAK = _{ "break" }
 KW_CONTINUE = _{ "continue" }
 KW_FN = _{ "fn" }
 KW_RETURN = _{ "return" }
+KW_RECORD = _{ "record" }
 
-ident = @{ !(KW_LET | KW_IF | KW_ELSE | KW_WHILE | KW_BREAK | KW_CONTINUE | KW_FN | KW_RETURN)
+ident = @{ !(KW_LET | KW_IF | KW_ELSE | KW_WHILE | KW_BREAK | KW_CONTINUE | KW_FN | KW_RETURN | "record")
   ~ (ASCII_ALPHA | "_") ~ (ASCII_ALPHANUMERIC | "_")* }
 int = @{ ASCII_DIGIT+ }
 string = @{ "\"" ~ ( "\\\"" | "\\\\" | !"\"" ~ ANY )* ~ "\"" }
 type_name = { "i32" | "u64" | "f64" | "bool" | "string" | "res" | ident }
+field_decl = { ident ~ ":" ~ type_name }
+record_decl = { "record" ~ ident ~ "{" ~ (field_decl ~ ("," ~ field_decl)*)? ~ ","? ~ "}" }
 
 unary_op = { "-" | "!" }
-atom = _{ int | string | if_expr | block | call | ident | paren }
+record_field = { ident ~ ":" ~ expr }
+record_name = @{ !("true" | "false") ~ ident }
+record_expr = { record_name ~ "{" ~ (record_field ~ ("," ~ record_field)*)? ~ ","? ~ "}" }
+field_access = { (call | ident | paren) ~ ("." ~ ident)+ }
+atom = _{ int | string | if_expr | block | record_expr | field_access | call | ident | paren }
 call = { ident ~ "(" ~ (expr ~ ("," ~ expr)*)? ~ ")" }
 paren = { "(" ~ expr ~ ")" }
 expr = { term ~ (bin_op ~ term)* }
@@ -36,5 +43,5 @@ assign = { ident ~ "=" ~ expr ~ ";" }
 param = { ident ~ ":" ~ type_name }
 fn_decl = { KW_FN ~ ident ~ "(" ~ (param ~ ("," ~ param)*)? ~ ")" ~ ("->" ~ type_name)? ~ block }
 expr_stmt = { expr ~ ";" }
-stmt = { fn_decl | let_decl | assign | if_stmt | while_stmt | break_stmt | continue_stmt | return_stmt | expr_stmt }
+stmt = { record_decl | fn_decl | let_decl | assign | if_stmt | while_stmt | break_stmt | continue_stmt | return_stmt | expr_stmt }
 program = { SOI ~ stmt* ~ EOI }

@@ -1,5 +1,5 @@
 use crate::ast::{Expr, Op, Stmt, Type, Value};
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 const LOOP_ITERATION_LIMIT: usize = 1_000_000;
 const CALL_DEPTH_LIMIT: usize = 256;
 #[derive(Debug, Clone, PartialEq)]
@@ -62,6 +62,7 @@ pub fn eval(stmts: &[Stmt]) -> Result<Value, EvalError> {
 fn eval_stmt(s: &Stmt, e: &mut Env, f: &Functions, d: usize) -> Result<Control, EvalError> {
     match s {
         Stmt::Function { .. } => Ok(Control::Value(Value::Unit)),
+        Stmt::Record { .. } => Ok(Control::Value(Value::Unit)),
         Stmt::Let { name, ty, value } => {
             let v = match eval_expr(value, e, f, d)? {
                 Control::Value(v) => v,
@@ -129,6 +130,26 @@ fn eval_expr(x: &Expr, e: &mut Env, f: &Functions, d: usize) -> Result<Control, 
         Expr::Int(v) => Ok(Control::Value(Value::Int(*v))),
         Expr::Bool(v) => Ok(Control::Value(Value::Bool(*v))),
         Expr::String(v) => Ok(Control::Value(Value::String(v.clone()))),
+        Expr::Record(name, fields) => {
+            let mut values = BTreeMap::new();
+            for (field, expr) in fields {
+                values.insert(field.clone(), value_of(eval_expr(expr, e, f, d)?)?);
+            }
+            Ok(Control::Value(Value::Record(name.clone(), values)))
+        }
+        Expr::Field(value, field) => {
+            let value = value_of(eval_expr(value, e, f, d)?)?;
+            match value {
+                Value::Record(_, fields) => fields
+                    .get(field)
+                    .cloned()
+                    .map(Control::Value)
+                    .ok_or_else(|| EvalError::RuntimeError(format!("unknown field `{field}`"))),
+                _ => Err(EvalError::TypeError(
+                    "field access requires a record".into(),
+                )),
+            }
+        }
         Expr::Var(n) => e
             .get(n)
             .cloned()
@@ -276,6 +297,7 @@ fn validate(n: &str, t: &Type, v: &Value) -> Result<(), EvalError> {
         Type::Bool => matches!(v, Value::Bool(_)),
         Type::String => matches!(v, Value::String(_)),
         Type::Unit => matches!(v, Value::Unit),
+        Type::Custom(name) => matches!(v, Value::Record(value_name, _) if value_name == name),
         _ => false,
     };
     if ok {
@@ -310,6 +332,7 @@ fn display(v: &Value) -> String {
         Value::U64(x) => x.to_string(),
         Value::Bool(x) => x.to_string(),
         Value::Unit => "()".into(),
+        Value::Record(name, fields) => format!("{name}{{{} fields}}", fields.len()),
     }
 }
 fn bin(a: Value, o: &Op, b: Value) -> Result<Control, EvalError> {

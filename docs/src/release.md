@@ -29,5 +29,6 @@ given source tree and lockfile.
 ## Current blockers
 
 A production `0.1` compiler release is blocked by the absent verified native
-backend, user-defined types, collections, modules, and project/package
-management. These are deliberate roadmap items, not alpha release failures.
+backend, collections, modules, and project/package management. Records are
+supported in the alpha interpreter and textual IR; the remaining items are
+deliberate roadmap work, not alpha release failures.
