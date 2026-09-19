@@ -6,9 +6,46 @@
 //! # Tag reference doc in /home/raven/devspace/docs/tags/TAG_API.md
 //!
 
-use crate::ast::Stmt;
+use crate::ir::IrProgram;
 
-/// QBE code generation is intentionally disabled until the interpreter AST is stable.
-pub fn generate_qbe(_stmts: &[Stmt]) -> Result<String, String> {
-    Err("QBE code generation is not implemented yet".into())
+/// A backend consumes only verified IR. No backend is shipped in this phase.
+pub trait Backend {
+    type Error: std::error::Error;
+
+    fn name(&self) -> &'static str;
+    fn emit(&self, program: &IrProgram) -> Result<String, Self::Error>;
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BackendError {
+    pub code: &'static str,
+    pub backend: &'static str,
+    pub message: String,
+}
+
+impl std::fmt::Display for BackendError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{} [{}]: {}", self.code, self.backend, self.message)
+    }
+}
+
+impl std::error::Error for BackendError {}
+
+/// QBE remains an explicit boundary, rather than a partial or fake emitter.
+pub struct QbeBackend;
+
+impl Backend for QbeBackend {
+    type Error = BackendError;
+
+    fn name(&self) -> &'static str {
+        "qbe"
+    }
+
+    fn emit(&self, _program: &IrProgram) -> Result<String, Self::Error> {
+        Err(BackendError {
+            code: "BE001",
+            backend: self.name(),
+            message: "native code generation is not implemented".into(),
+        })
+    }
 }

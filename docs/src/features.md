@@ -32,6 +32,22 @@ point, resource, custom types, and other constructs are rejected explicitly by
 the lowering stage rather than silently approximated. Record lowering is supported;
 native code generation is not.
 
+## Lowerable IR contract
+
+`build` and `ir` run a verifier before producing textual IR. The verified
+subset is deliberately narrower than the interpreter: `i32`, `u64`, `bool`,
+`unit`, arithmetic/boolean expressions, structured control flow, declared
+functions, record construction, and immutable arrays. Strings, record field
+projection, indexed mutation, enums, `Result`, maps, and I/O builtins are
+deferred until their native representation and runtime ABI are specified.
+Failures carry a stable `IR001` (invalid invariant) or `IR002` (unsupported
+feature) code and a path into the IR. No backend is called after a failure.
+
+The future backend contract must specify calling convention, entry point,
+layout, allocation, ownership, integer semantics, and runtime services. A
+`Backend` trait exists as the boundary; QBE/Cranelift output is intentionally
+not implemented.
+
 ## Public release posture
 
 Vex is suitable for a labeled `0.1.0-alpha.1` public release as an interpreter

@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+- Added a structured IR verifier (`IR001` invariant failures and `IR002`
+  deferred-feature failures) that runs before `build`/`ir` artifacts are
+  rendered.
+- Documented the native lowering subset and runtime/backend contract.
+- Added a backend trait boundary without emitting fake QBE or native output.
+
 ## 0.1.0-alpha.1
 
 - Hardened public-alpha release metadata with `vexlang --version`,

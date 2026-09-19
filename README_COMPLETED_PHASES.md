@@ -37,6 +37,10 @@ This file records delivered phases. Forward-looking work is tracked in
 - Added backend-independent typed lowering.
 - Added deterministic textual IR.
 - Added interpreter/lowering consistency tests.
+- Added explicit IR verification with structured invariant and unsupported
+  feature errors before any backend boundary.
+- Documented the lowerable subset and the runtime contract required by a first
+  native target.
 - Kept native and QBE output explicitly unsupported until a verified backend
   exists.
 

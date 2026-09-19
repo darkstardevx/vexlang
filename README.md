@@ -84,6 +84,9 @@ cargo run -- ir program.vex
 
 `fmt` validates source and writes it to stdout. `build` and `ir` validate and
 lower the program to deterministic textual IR; they do not emit machine code.
+Before rendering, the IR verifier checks scopes, types, declarations, control
+flow, and backend support. A failed verification is a hard error: no backend
+is invoked and no native artifact is produced.
 The legacy `cargo run -- program.vex` form remains an alias for `run`.
 
 Read source from stdin:
@@ -189,3 +192,14 @@ will be added when the community space is established. Please review the
 QBE output is disabled until a correct implementation exists; the internal
 generator returns an explicit unsupported error rather than emitting partial
 output. Textual IR is the only build artifact in this milestone.
+
+### Native lowering contract
+
+The first native target may consume only verified IR containing `i32`, `u64`,
+`bool`, `unit`, calls to declared functions, structured `if`/`while`, records,
+and immutable arrays. The target must document calling convention, integer
+overflow/division behavior, record and array layout, allocation/lifetime, and
+the process entry point. Strings, field projection, indexed mutation, enums,
+`Result`, maps, and I/O builtins are currently deferred because no runtime ABI
+has been specified. The `Backend` trait is the clean boundary for a future
+QBE or Cranelift implementation; it intentionally emits no code today.

@@ -19,7 +19,7 @@ pipeline stage:
 | `E100x` | Parsing and AST construction |
 | `E200x` | Semantic and type analysis |
 | `E300x` | Evaluation and runtime failures |
-| `E400x` | Unsupported tooling operations |
+| `E400x` | IR lowering and unsupported tooling operations |
 
 Examples include:
 
@@ -32,6 +32,11 @@ program.vex:1:5: error[E1001]: parse error: ...
 program.vex:1:1: error[E3001]: division by zero
      = help: ensure the divisor is not zero
 ```
+
+Verifier failures use `E4003` and retain an inner machine-readable `IR001`
+(invalid invariant) or `IR002` (deferred feature) code and an IR path. Backend
+failures follow the same pattern (`BE001` for the intentionally unavailable
+QBE boundary) and never produce partial output.
 
 Diagnostics currently retain a relevant source span at the pipeline boundary.
 Per-node span storage in every AST value is planned refinement work; the

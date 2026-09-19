@@ -126,6 +126,40 @@ pub enum LowerError {
     Invalid(String),
 }
 
+/// A machine-readable failure raised before a backend is allowed to run.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct VerifyError {
+    pub code: &'static str,
+    pub path: String,
+    pub message: String,
+}
+
+impl VerifyError {
+    fn invalid(path: impl Into<String>, message: impl Into<String>) -> Self {
+        Self {
+            code: "IR001",
+            path: path.into(),
+            message: message.into(),
+        }
+    }
+
+    fn unsupported(path: impl Into<String>, message: impl Into<String>) -> Self {
+        Self {
+            code: "IR002",
+            path: path.into(),
+            message: message.into(),
+        }
+    }
+}
+
+impl std::fmt::Display for VerifyError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{} at {}: {}", self.code, self.path, self.message)
+    }
+}
+
+impl std::error::Error for VerifyError {}
+
 impl std::fmt::Display for LowerError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
@@ -163,7 +197,7 @@ pub fn lower(stmts: &[Stmt]) -> Result<IrProgram, LowerError> {
     for stmt in stmts {
         body.push(lower_stmt(stmt, &functions, &mut scope)?);
     }
-    Ok(IrProgram {
+    let program = IrProgram {
         functions: body
             .iter()
             .filter_map(|stmt| match stmt {
@@ -172,7 +206,599 @@ pub fn lower(stmts: &[Stmt]) -> Result<IrProgram, LowerError> {
             })
             .collect(),
         body,
-    })
+    };
+    verify(&program).map_err(|error| LowerError::Invalid(error.to_string()))?;
+    Ok(program)
+}
+
+/// Verify the IR contract shared by all future native backends.
+///
+/// The current contract deliberately contains only scalar arithmetic and
+/// booleans, structured control flow, calls, records, and arrays. Strings,
+/// enums, Result, maps, and indexed mutation are retained in the AST/evaluator
+/// but are rejected here until their runtime representation is specified.
+pub fn verify(program: &IrProgram) -> Result<(), VerifyError> {
+    let mut functions = HashMap::new();
+    let mut records = HashMap::new();
+    for (index, stmt) in program.body.iter().enumerate() {
+        match stmt {
+            IrStmt::Function(function) => {
+                if functions.insert(function.name.clone(), function).is_some() {
+                    return Err(VerifyError::invalid(
+                        format!("body[{index}]"),
+                        format!("duplicate function `{}`", function.name),
+                    ));
+                }
+            }
+            IrStmt::Record { name, fields } => {
+                if records.insert(name.clone(), fields).is_some() {
+                    return Err(VerifyError::invalid(
+                        format!("body[{index}]"),
+                        format!("duplicate record `{name}`"),
+                    ));
+                }
+            }
+            IrStmt::Enum { name, .. } => {
+                return Err(VerifyError::unsupported(
+                    format!("body[{index}]"),
+                    format!("enum `{name}` has no native runtime contract"),
+                ));
+            }
+            _ => {}
+        }
+    }
+    let mut scope = HashMap::new();
+    for (index, stmt) in program.body.iter().enumerate() {
+        verify_stmt(
+            stmt,
+            &format!("body[{index}]"),
+            &functions,
+            &records,
+            &mut scope,
+            false,
+            None,
+        )?;
+    }
+    Ok(())
+}
+
+fn verify_type(
+    ty: &IrType,
+    path: &str,
+    records: &HashMap<String, &Vec<(String, IrType)>>,
+) -> Result<(), VerifyError> {
+    match ty {
+        IrType::I32 | IrType::U64 | IrType::Bool | IrType::Unit => Ok(()),
+        IrType::Array(element) => verify_type(element, &format!("{path}[]"), records),
+        IrType::Record(name) => {
+            if name == "Result" || name == "Map" {
+                return Err(VerifyError::unsupported(
+                    path,
+                    format!("`{name}` runtime is deferred"),
+                ));
+            }
+            if !records.contains_key(name) {
+                return Err(VerifyError::invalid(
+                    path,
+                    format!("unknown record `{name}`"),
+                ));
+            }
+            Ok(())
+        }
+        IrType::String => Err(VerifyError::unsupported(path, "strings need a runtime ABI")),
+        IrType::Enum(name) => Err(VerifyError::unsupported(
+            path,
+            format!("enum `{name}` runtime is deferred"),
+        )),
+    }
+}
+
+fn verify_stmt(
+    stmt: &IrStmt,
+    path: &str,
+    functions: &HashMap<String, &IrFunction>,
+    records: &HashMap<String, &Vec<(String, IrType)>>,
+    scope: &mut HashMap<String, IrType>,
+    in_loop: bool,
+    return_type: Option<&IrType>,
+) -> Result<(), VerifyError> {
+    match stmt {
+        IrStmt::Function(function) => {
+            let mut local = HashMap::new();
+            for (name, ty) in &function.params {
+                verify_type(ty, &format!("{path}.param.{name}"), records)?;
+                if local.insert(name.clone(), ty.clone()).is_some() {
+                    return Err(VerifyError::invalid(
+                        path,
+                        format!("duplicate parameter `{name}`"),
+                    ));
+                }
+            }
+            verify_type(&function.return_type, &format!("{path}.return"), records)?;
+            verify_expr(
+                &function.body,
+                &format!("{path}.body"),
+                functions,
+                records,
+                &mut local,
+                false,
+                Some(&function.return_type),
+            )
+        }
+        IrStmt::Record { fields, .. } => {
+            for (name, ty) in fields {
+                verify_type(ty, &format!("{path}.field.{name}"), records)?;
+            }
+            Ok(())
+        }
+        IrStmt::Let { name, ty, value } => {
+            verify_type(ty, &format!("{path}.type"), records)?;
+            verify_expr(
+                value,
+                &format!("{path}.value"),
+                functions,
+                records,
+                scope,
+                in_loop,
+                return_type,
+            )?;
+            if value.ty != *ty {
+                return Err(VerifyError::invalid(
+                    path,
+                    format!("let `{name}` type {} does not match value {}", ty, value.ty),
+                ));
+            }
+            scope.insert(name.clone(), ty.clone());
+            Ok(())
+        }
+        IrStmt::Assign { name, value } => {
+            let expected = scope.get(name).cloned().ok_or_else(|| {
+                VerifyError::invalid(path, format!("assignment to undefined variable `{name}`"))
+            })?;
+            verify_expr(
+                value,
+                &format!("{path}.value"),
+                functions,
+                records,
+                scope,
+                in_loop,
+                return_type,
+            )?;
+            if value.ty != expected {
+                return Err(VerifyError::invalid(
+                    path,
+                    format!(
+                        "assignment to `{name}` has type {}, expected {expected}",
+                        value.ty
+                    ),
+                ));
+            }
+            Ok(())
+        }
+        IrStmt::AssignIndex { .. } => Err(VerifyError::unsupported(
+            path,
+            "indexed mutation runtime is deferred",
+        )),
+        IrStmt::Expr(expr) => verify_expr(
+            expr,
+            &format!("{path}.expr"),
+            functions,
+            records,
+            scope,
+            in_loop,
+            return_type,
+        ),
+        IrStmt::If {
+            condition,
+            then_branch,
+            else_branch,
+        } => {
+            verify_expr(
+                condition,
+                &format!("{path}.condition"),
+                functions,
+                records,
+                scope,
+                in_loop,
+                return_type,
+            )?;
+            if condition.ty != IrType::Bool {
+                return Err(VerifyError::invalid(path, "if condition must be bool"));
+            }
+            verify_expr(
+                then_branch,
+                &format!("{path}.then"),
+                functions,
+                records,
+                scope,
+                in_loop,
+                return_type,
+            )?;
+            if let Some(expr) = else_branch {
+                verify_expr(
+                    expr,
+                    &format!("{path}.else"),
+                    functions,
+                    records,
+                    scope,
+                    in_loop,
+                    return_type,
+                )?;
+            }
+            Ok(())
+        }
+        IrStmt::While { condition, body } => {
+            verify_expr(
+                condition,
+                &format!("{path}.condition"),
+                functions,
+                records,
+                scope,
+                in_loop,
+                return_type,
+            )?;
+            if condition.ty != IrType::Bool {
+                return Err(VerifyError::invalid(path, "while condition must be bool"));
+            }
+            verify_expr(
+                body,
+                &format!("{path}.body"),
+                functions,
+                records,
+                scope,
+                true,
+                return_type,
+            )
+        }
+        IrStmt::Break | IrStmt::Continue if !in_loop => {
+            Err(VerifyError::invalid(path, "loop control is outside a loop"))
+        }
+        IrStmt::Break | IrStmt::Continue => Ok(()),
+        IrStmt::Return(expr) => {
+            let expected = return_type
+                .ok_or_else(|| VerifyError::invalid(path, "return is outside a function"))?;
+            if let Some(expr) = expr {
+                verify_expr(
+                    expr,
+                    &format!("{path}.value"),
+                    functions,
+                    records,
+                    scope,
+                    in_loop,
+                    return_type,
+                )?;
+                if expr.ty != *expected {
+                    return Err(VerifyError::invalid(
+                        path,
+                        format!("return has type {}, expected {expected}", expr.ty),
+                    ));
+                }
+            } else if *expected != IrType::Unit {
+                return Err(VerifyError::invalid(
+                    path,
+                    "non-unit function must return a value",
+                ));
+            }
+            Ok(())
+        }
+        IrStmt::Enum { .. } => unreachable!(),
+    }
+}
+
+fn verify_expr(
+    expr: &IrExpr,
+    path: &str,
+    functions: &HashMap<String, &IrFunction>,
+    records: &HashMap<String, &Vec<(String, IrType)>>,
+    scope: &mut HashMap<String, IrType>,
+    in_loop: bool,
+    return_type: Option<&IrType>,
+) -> Result<(), VerifyError> {
+    verify_type(&expr.ty, &format!("{path}.type"), records)?;
+    match &expr.kind {
+        IrExprKind::Int(_) if expr.ty == IrType::I32 => Ok(()),
+        IrExprKind::Bool(_) if expr.ty == IrType::Bool => Ok(()),
+        IrExprKind::Int(_) | IrExprKind::Bool(_) => {
+            Err(VerifyError::invalid(path, "literal type is inconsistent"))
+        }
+        IrExprKind::String(_) => Err(VerifyError::unsupported(path, "strings need a runtime ABI")),
+        IrExprKind::Var(name) => {
+            let ty = scope.get(name).ok_or_else(|| {
+                VerifyError::invalid(path, format!("undefined variable `{name}`"))
+            })?;
+            if *ty != expr.ty {
+                return Err(VerifyError::invalid(
+                    path,
+                    "variable type annotation is inconsistent",
+                ));
+            }
+            Ok(())
+        }
+        IrExprKind::Binary(left, op, right) => {
+            verify_expr(
+                left,
+                &format!("{path}.left"),
+                functions,
+                records,
+                scope,
+                in_loop,
+                return_type,
+            )?;
+            verify_expr(
+                right,
+                &format!("{path}.right"),
+                functions,
+                records,
+                scope,
+                in_loop,
+                return_type,
+            )?;
+            if left.ty != right.ty {
+                return Err(VerifyError::invalid(
+                    path,
+                    "binary operands have different types",
+                ));
+            }
+            let expected = if matches!(op, Op::Eq | Op::Lt | Op::Gt | Op::And | Op::Or) {
+                IrType::Bool
+            } else {
+                left.ty.clone()
+            };
+            if expr.ty != expected {
+                return Err(VerifyError::invalid(
+                    path,
+                    "binary result type is inconsistent",
+                ));
+            }
+            Ok(())
+        }
+        IrExprKind::Unary(op, value) => {
+            verify_expr(
+                value,
+                &format!("{path}.value"),
+                functions,
+                records,
+                scope,
+                in_loop,
+                return_type,
+            )?;
+            let expected = if *op == Op::Not {
+                IrType::Bool
+            } else {
+                value.ty.clone()
+            };
+            if expr.ty != expected {
+                return Err(VerifyError::invalid(
+                    path,
+                    "unary result type is inconsistent",
+                ));
+            }
+            Ok(())
+        }
+        IrExprKind::Block(stmts, tail) => {
+            let mut local = scope.clone();
+            for (index, stmt) in stmts.iter().enumerate() {
+                verify_stmt(
+                    stmt,
+                    &format!("{path}.stmt[{index}]"),
+                    functions,
+                    records,
+                    &mut local,
+                    in_loop,
+                    return_type,
+                )?;
+            }
+            if let Some(tail) = tail {
+                verify_expr(
+                    tail,
+                    &format!("{path}.tail"),
+                    functions,
+                    records,
+                    &mut local,
+                    in_loop,
+                    return_type,
+                )?;
+            }
+            Ok(())
+        }
+        IrExprKind::If {
+            condition,
+            then_branch,
+            else_branch,
+        } => {
+            verify_expr(
+                condition,
+                &format!("{path}.condition"),
+                functions,
+                records,
+                scope,
+                in_loop,
+                return_type,
+            )?;
+            if condition.ty != IrType::Bool {
+                return Err(VerifyError::invalid(path, "if condition must be bool"));
+            }
+            verify_expr(
+                then_branch,
+                &format!("{path}.then"),
+                functions,
+                records,
+                scope,
+                in_loop,
+                return_type,
+            )?;
+            if let Some(other) = else_branch {
+                verify_expr(
+                    other,
+                    &format!("{path}.else"),
+                    functions,
+                    records,
+                    scope,
+                    in_loop,
+                    return_type,
+                )?;
+                if then_branch.ty != other.ty || expr.ty != then_branch.ty {
+                    return Err(VerifyError::invalid(
+                        path,
+                        "if branches must have the same type",
+                    ));
+                }
+            } else if expr.ty != IrType::Unit {
+                return Err(VerifyError::invalid(
+                    path,
+                    "if without else must have unit type",
+                ));
+            }
+            Ok(())
+        }
+        IrExprKind::Call(name, args) => {
+            for (index, arg) in args.iter().enumerate() {
+                verify_expr(
+                    arg,
+                    &format!("{path}.arg[{index}]"),
+                    functions,
+                    records,
+                    scope,
+                    in_loop,
+                    return_type,
+                )?;
+            }
+            if let Some(function) = functions.get(name) {
+                if function.params.len() != args.len() {
+                    return Err(VerifyError::invalid(
+                        path,
+                        "wrong number of function arguments",
+                    ));
+                }
+                for ((_, expected), actual) in function.params.iter().zip(args) {
+                    if *expected != actual.ty {
+                        return Err(VerifyError::invalid(
+                            path,
+                            "function argument type mismatch",
+                        ));
+                    }
+                }
+                if expr.ty != function.return_type {
+                    return Err(VerifyError::invalid(
+                        path,
+                        "call result type is inconsistent",
+                    ));
+                }
+                Ok(())
+            } else if matches!(name.as_str(), "i32" | "u64") {
+                if args.len() != 1 || !matches!(args[0].ty, IrType::I32 | IrType::U64) {
+                    return Err(VerifyError::invalid(
+                        path,
+                        format!("{name} conversion expects one integer argument"),
+                    ));
+                }
+                let expected = if name == "i32" {
+                    IrType::I32
+                } else {
+                    IrType::U64
+                };
+                if expr.ty != expected {
+                    return Err(VerifyError::invalid(
+                        path,
+                        "conversion result type is inconsistent",
+                    ));
+                }
+                Ok(())
+            } else {
+                Err(VerifyError::unsupported(
+                    path,
+                    format!("builtin `{name}` has no native contract"),
+                ))
+            }
+        }
+        IrExprKind::Record(name, fields) => {
+            let definition = records
+                .get(name)
+                .ok_or_else(|| VerifyError::invalid(path, format!("unknown record `{name}`")))?;
+            if expr.ty != IrType::Record(name.clone()) {
+                return Err(VerifyError::invalid(
+                    path,
+                    "record expression type is inconsistent",
+                ));
+            }
+            for (field, value) in fields {
+                let (_, expected) =
+                    definition.iter().find(|(n, _)| n == field).ok_or_else(|| {
+                        VerifyError::invalid(path, format!("unknown field `{field}`"))
+                    })?;
+                verify_expr(
+                    value,
+                    &format!("{path}.{field}"),
+                    functions,
+                    records,
+                    scope,
+                    in_loop,
+                    return_type,
+                )?;
+                if value.ty != *expected {
+                    return Err(VerifyError::invalid(
+                        path,
+                        format!("field `{field}` type mismatch"),
+                    ));
+                }
+            }
+            Ok(())
+        }
+        IrExprKind::Field(value, field) => {
+            verify_expr(
+                value,
+                &format!("{path}.record"),
+                functions,
+                records,
+                scope,
+                in_loop,
+                return_type,
+            )?;
+            let IrType::Record(name) = &value.ty else {
+                return Err(VerifyError::invalid(path, "field access requires a record"));
+            };
+            let definition = records
+                .get(name)
+                .ok_or_else(|| VerifyError::invalid(path, format!("unknown record `{name}`")))?;
+            if !definition.iter().any(|(candidate, _)| candidate == field) {
+                return Err(VerifyError::invalid(
+                    path,
+                    format!("unknown field `{field}` on `{name}`"),
+                ));
+            }
+            // The current textual IR preserves the record type for projections;
+            // a native backend must replace this with a layout-aware field type.
+            Ok(())
+        }
+        IrExprKind::Array(values) => {
+            let element = match &expr.ty {
+                IrType::Array(element) => element,
+                _ => {
+                    return Err(VerifyError::invalid(
+                        path,
+                        "array expression must have array type",
+                    ));
+                }
+            };
+            for value in values {
+                verify_expr(value, path, functions, records, scope, in_loop, return_type)?;
+                if value.ty != **element {
+                    return Err(VerifyError::invalid(
+                        path,
+                        "array elements have different types",
+                    ));
+                }
+            }
+            Ok(())
+        }
+        IrExprKind::EnumVariant { .. } => {
+            Err(VerifyError::unsupported(path, "enum runtime is deferred"))
+        }
+        IrExprKind::Index(_, _) => Err(VerifyError::unsupported(
+            path,
+            "array indexing runtime is deferred",
+        )),
+    }
 }
 
 fn ir_type(ty: &Type) -> Result<IrType, LowerError> {
@@ -580,7 +1206,7 @@ fn display_expr(expr: &IrExpr) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::{lower, render};
+    use super::{lower, render, verify};
     use crate::{ast::Value, builder::build_ast, evaluator, parser::parse_vex};
 
     fn compile(source: &str) -> String {
@@ -612,5 +1238,36 @@ mod tests {
         assert_eq!(evaluator::eval(&ast), Ok(Value::Int(4)));
         assert!(render(&program).contains("while"));
         assert!(render(&program).contains("fn inc(value: i32) -> i32"));
+    }
+
+    #[test]
+    fn verifier_accepts_lowerable_differential_corpus() {
+        for source in [
+            "1 + 2 * 3;",
+            "true && !false;",
+            "let x = 0; while x < 2 { x = x + 1; } x;",
+            "fn add(a: i32, b: i32) -> i32 { a + b } add(1, 2);",
+            "record Pair { left: i32, right: i32 } Pair { left: 1, right: 2 };",
+            "let xs: [i32] = [1, 2, 3]; xs;",
+        ] {
+            let pairs = parse_vex(source).unwrap();
+            let ast = build_ast(pairs).unwrap();
+            let program = lower(&ast).unwrap();
+            verify(&program).unwrap();
+        }
+    }
+
+    #[test]
+    fn verifier_reports_deferred_features_without_emitting_backend_output() {
+        for source in [
+            "enum Maybe { None } Maybe::None;",
+            r#"let value = ok(1); value;"#,
+            r#"let values = map("answer", 42); values;"#,
+        ] {
+            let pairs = parse_vex(source).unwrap();
+            let ast = build_ast(pairs).unwrap();
+            let error = lower(&ast).unwrap_err().to_string();
+            assert!(error.contains("IR002"), "{error}");
+        }
     }
 }

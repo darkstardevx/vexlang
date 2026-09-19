@@ -1,6 +1,8 @@
 mod analyzer;
 mod ast;
 mod builder;
+#[allow(dead_code)]
+mod codegen;
 mod diagnostics;
 mod evaluator;
 mod ir;
@@ -63,9 +65,15 @@ fn pipeline(source: &str) -> Result<Vec<ast::Stmt>, Diagnostic> {
 fn lower_source(source: &str) -> Result<(Vec<ast::Stmt>, ir::IrProgram), Diagnostic> {
     let stmts = pipeline(source)?;
     let program = ir::lower(&stmts).map_err(|error| {
+        let message = error.to_string();
+        let code = if message.starts_with("IR") {
+            "E4003"
+        } else {
+            "E4002"
+        };
         Diagnostic::new(
-            "E4002",
-            format!("lowering error: {error}"),
+            code,
+            format!("IR lowering error: {error}"),
             span_for(source, None),
         )
     })?;
