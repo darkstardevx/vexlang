@@ -5,7 +5,8 @@ The executable is available as `vexlang`; during development, use
 With no path, input is read from standard input.
 
 `vexlang --version` (or `-V`) prints the package version used by the release
-metadata checks.
+metadata checks. `--json` or `--diagnostic-format=json` switches source
+diagnostics to a single machine-readable JSON object on standard error.
 
 | Command | Behavior | Success |
 | --- | --- | --- |
@@ -30,6 +31,7 @@ cargo run -- run examples/hello.vex
 printf 'let n = 6; n * 7;' | cargo run -- run -
 cargo run -- fmt program.vex > formatted.vex
 cargo run -- qbe program.vex > program.ssa
+cargo run -- --json check program.vex
 ```
 
 ## Exit codes

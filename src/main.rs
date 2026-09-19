@@ -116,7 +116,20 @@ fn read_source(path: Option<&str>) -> Result<String, String> {
 }
 
 fn usage() -> &'static str {
-    "usage: vexlang [check|run|repl|project|fmt|test|build|ir|target|qbe] [FILE|-]\n       vexlang FILE   (backwards-compatible alias for run)\n       vexlang --version"
+    "usage: vexlang [--json] [check|run|repl|project|fmt|test|build|ir|target|qbe] [FILE|-]\n       vexlang FILE   (backwards-compatible alias for run)\n       vexlang --version"
+}
+
+fn render_diagnostic(error: &Diagnostic, source: &str, path: Option<&str>, json: bool) -> String {
+    let name = path.unwrap_or("<stdin>");
+    if json {
+        error.render_json(source, name)
+    } else {
+        error.render(source, name)
+    }
+}
+
+fn report_diagnostic(error: &Diagnostic, source: &str, path: Option<&str>, json: bool) {
+    eprintln!("{}", render_diagnostic(error, source, path, json));
 }
 
 fn repl() {
@@ -189,7 +202,18 @@ fn repl() {
 }
 
 fn main() {
-    let args: Vec<String> = std::env::args().skip(1).collect();
+    let mut diagnostic_json = false;
+    let args: Vec<String> = std::env::args()
+        .skip(1)
+        .filter(|arg| {
+            if arg == "--json" || arg == "--diagnostic-format=json" {
+                diagnostic_json = true;
+                false
+            } else {
+                true
+            }
+        })
+        .collect();
     if matches!(args.as_slice(), [flag] if flag == "--version" || flag == "-V") {
         println!("vexlang {}", env!("CARGO_PKG_VERSION"));
         return;
@@ -254,30 +278,28 @@ fn main() {
             Ok(stmts) if command == "test" => match evaluator::eval(&stmts) {
                 Ok(_) => println!("test passed"),
                 Err(error) => {
-                    eprintln!(
-                        "{}",
-                        Diagnostic::new("E3001", error.to_string(), span_for(&source, None))
-                            .render(&source, path.unwrap_or("<stdin>"))
-                    );
+                    let diagnostic =
+                        Diagnostic::new("E3001", error.to_string(), span_for(&source, None));
+                    report_diagnostic(&diagnostic, &source, path, diagnostic_json);
                     std::process::exit(1);
                 }
             },
             Ok(_) => match run(&source) {
                 Ok(value) => println!("{value:?}"),
                 Err(error) => {
-                    eprintln!("{}", error.render(&source, path.unwrap_or("<stdin>")));
+                    report_diagnostic(&error, &source, path, diagnostic_json);
                     std::process::exit(1);
                 }
             },
             Err(error) => {
-                eprintln!("{}", error.render(&source, path.unwrap_or("<stdin>")));
+                report_diagnostic(&error, &source, path, diagnostic_json);
                 std::process::exit(1);
             }
         },
         "build" | "ir" => match lower_source(&source) {
             Ok((_stmts, program)) => print!("{}", ir::render(&program)),
             Err(error) => {
-                eprintln!("{}", error.render(&source, path.unwrap_or("<stdin>")));
+                report_diagnostic(&error, &source, path, diagnostic_json);
                 std::process::exit(1);
             }
         },
@@ -297,13 +319,13 @@ fn main() {
                 }
             }
             Err(error) => {
-                eprintln!("{}", error.render(&source, path.unwrap_or("<stdin>")));
+                report_diagnostic(&error, &source, path, diagnostic_json);
                 std::process::exit(1);
             }
         },
         "fmt" => {
             if let Err(error) = pipeline(&source) {
-                eprintln!("{}", error.render(&source, path.unwrap_or("<stdin>")));
+                report_diagnostic(&error, &source, path, diagnostic_json);
                 std::process::exit(1);
             }
             let mut stdout = io::stdout();

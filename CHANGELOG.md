@@ -18,6 +18,8 @@
   arithmetic, control flow, functions, booleans, and runtime traps.
 - Added reusable QBE install/smoke scripts, QBE backend documentation, and
   `u64` target design notes.
+- Added `--json` / `--diagnostic-format=json` machine-readable source
+  diagnostics for CLI tooling.
 
 ## 0.1.0-alpha.1
 

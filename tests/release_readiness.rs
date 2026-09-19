@@ -3,8 +3,12 @@ use std::process::{Command, Stdio};
 use std::time::Instant;
 
 fn vex(source: &str, command: &str) -> std::process::Output {
+    vex_args(source, &[command, "-"])
+}
+
+fn vex_args(source: &str, args: &[&str]) -> std::process::Output {
     let mut child = Command::new(env!("CARGO_BIN_EXE_vexlang"))
-        .args([command, "-"])
+        .args(args)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
@@ -83,6 +87,21 @@ fn diagnostic_fixture_is_stable() {
      |             ^^^^^^^
      = help: declare the variable with `let` before using it
 "#
+    );
+}
+
+#[test]
+fn json_diagnostic_fixture_is_stable() {
+    let output = vex_args("let value = missing;\n", &["--json", "check", "-"]);
+    assert!(!output.status.success());
+    let diagnostic = String::from_utf8_lossy(&output.stderr);
+    assert!(diagnostic.contains("\"severity\":\"error\""));
+    assert!(diagnostic.contains("\"code\":\"E2001\""));
+    assert!(diagnostic.contains("\"message\":\"undefined variable `missing`\""));
+    assert!(diagnostic.contains("\"line\":1"));
+    assert!(diagnostic.contains("\"column\":13"));
+    assert!(
+        diagnostic.contains("\"suggestion\":\"declare the variable with `let` before using it\"")
     );
 }
 

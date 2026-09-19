@@ -14,6 +14,14 @@ pub struct Diagnostic {
     pub suggestion: Option<String>,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct DiagnosticLocation {
+    pub line: usize,
+    pub column: usize,
+    pub end_line: usize,
+    pub end_column: usize,
+}
+
 impl Diagnostic {
     pub fn new(code: &'static str, message: impl Into<String>, span: Span) -> Self {
         Self {
@@ -29,6 +37,23 @@ impl Diagnostic {
         self
     }
 
+    pub fn location(&self, source: &str) -> DiagnosticLocation {
+        let start = self.span.start.min(source.len());
+        let end = self.span.end.max(start).min(source.len());
+        let line_start = source[..start].rfind('\n').map_or(0, |p| p + 1);
+        let end_line_start = source[..end].rfind('\n').map_or(0, |p| p + 1);
+        DiagnosticLocation {
+            line: source[..line_start].bytes().filter(|b| *b == b'\n').count() + 1,
+            column: start - line_start + 1,
+            end_line: source[..end_line_start]
+                .bytes()
+                .filter(|b| *b == b'\n')
+                .count()
+                + 1,
+            end_column: end - end_line_start + 1,
+        }
+    }
+
     pub fn render(&self, source: &str, name: &str) -> String {
         let start = self.span.start.min(source.len());
         let end = self.span.end.max(start).min(source.len());
@@ -36,14 +61,13 @@ impl Diagnostic {
         let line_end = source[start..]
             .find('\n')
             .map_or(source.len(), |p| start + p);
-        let line = source[..line_start].bytes().filter(|b| *b == b'\n').count() + 1;
-        let column = start - line_start + 1;
+        let location = self.location(source);
         let text = &source[line_start..line_end];
         let width = end.saturating_sub(start).max(1);
         let caret = format!("{}{}", " ".repeat(start - line_start), "^".repeat(width));
         let mut out = format!(
-            "{name}:{line}:{column}: error[{}]: {}\n {line:>3} | {text}\n     | {caret}",
-            self.code, self.message
+            "{name}:{}:{}: error[{}]: {}\n {:>3} | {text}\n     | {caret}",
+            location.line, location.column, self.code, self.message, location.line
         );
         if let Some(suggestion) = &self.suggestion {
             out.push_str(&format!("\n     = help: {suggestion}"));
@@ -51,10 +75,48 @@ impl Diagnostic {
         out
     }
 
+    pub fn render_json(&self, source: &str, name: &str) -> String {
+        let location = self.location(source);
+        let suggestion = self
+            .suggestion
+            .as_ref()
+            .map(|value| format!(",\"suggestion\":\"{}\"", json_escape(value)))
+            .unwrap_or_default();
+        format!(
+            "{{\"severity\":\"error\",\"code\":\"{}\",\"message\":\"{}\",\"file\":\"{}\",\"span\":{{\"start\":{},\"end\":{},\"line\":{},\"column\":{},\"endLine\":{},\"endColumn\":{}}}{}}}",
+            json_escape(self.code),
+            json_escape(&self.message),
+            json_escape(name),
+            self.span.start,
+            self.span.end,
+            location.line,
+            location.column,
+            location.end_line,
+            location.end_column,
+            suggestion
+        )
+    }
+
     #[cfg(test)]
     pub fn contains(&self, needle: &str) -> bool {
         self.message.contains(needle) || (needle == "2:" && self.span.start > 0)
     }
+}
+
+fn json_escape(value: &str) -> String {
+    let mut escaped = String::new();
+    for ch in value.chars() {
+        match ch {
+            '\\' => escaped.push_str("\\\\"),
+            '"' => escaped.push_str("\\\""),
+            '\n' => escaped.push_str("\\n"),
+            '\r' => escaped.push_str("\\r"),
+            '\t' => escaped.push_str("\\t"),
+            ch if ch.is_control() => escaped.push_str(&format!("\\u{:04x}", ch as u32)),
+            ch => escaped.push(ch),
+        }
+    }
+    escaped
 }
 
 impl fmt::Display for Diagnostic {
@@ -90,6 +152,18 @@ mod tests {
         assert!(rendered.contains("main.vex:1:3: error[E2001]"));
         assert!(rendered.contains("^"));
         assert!(rendered.contains("declare the name first"));
+    }
+
+    #[test]
+    fn renders_machine_readable_json() {
+        let diagnostic = Diagnostic::new("E2001", "unknown `name`", Span { start: 7, end: 11 })
+            .with_suggestion("declare \"name\" first");
+        let rendered = diagnostic.render_json("let x;\nname", "main.vex");
+        assert!(rendered.contains("\"code\":\"E2001\""));
+        assert!(rendered.contains("\"file\":\"main.vex\""));
+        assert!(rendered.contains("\"line\":2"));
+        assert!(rendered.contains("\"column\":1"));
+        assert!(rendered.contains("declare \\\"name\\\" first"));
     }
 
     #[test]

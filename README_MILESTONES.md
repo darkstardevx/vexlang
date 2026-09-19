@@ -51,7 +51,9 @@ artifacts are introduced.
 ## Milestone 12 — Production diagnostics
 
 - Retain source spans on every AST node.
-- Add richer multi-span diagnostics and machine-readable output.
+- Add richer multi-span diagnostics and machine-readable output. **Initial
+  machine-readable JSON diagnostics are available through `--json`; multi-span
+  output remains deferred.**
 - Add error recovery for multiple diagnostics per invocation.
 
 ## Milestone 13 — Native compilation
