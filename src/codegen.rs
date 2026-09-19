@@ -967,6 +967,9 @@ mod tests {
     fn qbe_trap_exit_codes_match_runtime_failures_when_toolchain_is_available() {
         for (index, (source, expected_exit)) in [
             ("let x = 2147483647; x + 1;", 101),
+            ("let x = -2147483647 - 1; x - 1;", 101),
+            ("let x = 50000; x * x;", 101),
+            ("let x = -2147483647 - 1; -x;", 101),
             ("let x = 1; let y = 0; x / y;", 102),
             ("let x = -2147483647 - 1; x / -1;", 103),
         ]
@@ -981,16 +984,87 @@ mod tests {
     }
 
     #[test]
-    fn qbe_matches_interpreter_for_scalar_corpus_when_toolchain_is_available() {
+    fn qbe_matches_interpreter_for_scalar_arithmetic_when_toolchain_is_available() {
         for (index, (source, expected)) in [
             ("1 + 2 * 3;", 7),
-            ("fn f(n: i32) -> i32 { if n < 2 { return 1; } f(n - 1) + f(n - 2) } f(6);", 13),
-            ("let x = 0; let total = 0; while x < 5 { x = x + 1; if x == 3 { continue; } total = total + x; } total;", 12),
+            ("let x = 20; let y = 6; x - y * 2;", 8),
+            ("let x = 40; let y = -5; x / -y;", 8),
+            ("let x = 2147483647; x - 2147483400;", 247),
+            ("let x = -2147483647 - 1; let y = x + 2147483647; -y;", 1),
+            ("let x = 46340; let y = x * x; y / 214739560;", 10),
         ]
         .iter()
         .enumerate()
         {
             let Some(code) = compile_and_run_qbe(source, index + 100) else {
+                return;
+            };
+            assert_eq!(code, *expected, "compiled result for `{source}`");
+        }
+    }
+
+    #[test]
+    fn qbe_matches_interpreter_for_scalar_control_flow_when_toolchain_is_available() {
+        for (index, (source, expected)) in [
+            ("let x = 0; let total = 0; while x < 5 { x = x + 1; total = total + x; } total;", 15),
+            ("let x = 0; let total = 0; while x < 5 { x = x + 1; if x == 3 { continue; } total = total + x; } total;", 12),
+            ("let x = 0; while x < 10 { x = x + 1; if x == 4 { break; } } x;", 4),
+            ("let x = 0; let y = 0; while x < 3 { x = x + 1; let z = 0; while z < 3 { z = z + 1; y = y + x * z; } } y;", 36),
+            ("let x = 7; let y = if x < 0 { 1 } else { if x == 7 { 42 } else { 2 } }; y;", 42),
+        ]
+        .iter()
+        .enumerate()
+        {
+            let Some(code) = compile_and_run_qbe(source, index + 200) else {
+                return;
+            };
+            assert_eq!(code, *expected, "compiled result for `{source}`");
+        }
+    }
+
+    #[test]
+    fn qbe_matches_interpreter_for_scalar_functions_when_toolchain_is_available() {
+        for (index, (source, expected)) in [
+            ("fn add3(a: i32, b: i32, c: i32) -> i32 { a + b + c } add3(2, 3, 4);", 9),
+            ("fn pick(n: i32) -> i32 { if n < 0 { return 7; } n + 1 } pick(-2);", 7),
+            ("fn f(n: i32) -> i32 { if n < 2 { return 1; } f(n - 1) + f(n - 2) } f(6);", 13),
+            ("fn square(n: i32) -> i32 { n * n } fn sum(a: i32, b: i32) -> i32 { a + b } sum(square(3), square(4));", 25),
+        ]
+        .iter()
+        .enumerate()
+        {
+            let Some(code) = compile_and_run_qbe(source, index + 300) else {
+                return;
+            };
+            assert_eq!(code, *expected, "compiled result for `{source}`");
+        }
+    }
+
+    #[test]
+    fn qbe_matches_interpreter_for_scalar_booleans_when_toolchain_is_available() {
+        for (index, (source, expected)) in [
+            (
+                "let x = 3; let y = if (x > 2) && (x < 4) { 11 } else { 22 }; y;",
+                11,
+            ),
+            (
+                "let x = 0; let y = if (x == 0) || (1 / x == 0) { 33 } else { 44 }; y;",
+                33,
+            ),
+            (
+                "let x = 0; let y = if !(x == 0) && (1 / x == 0) { 55 } else { 66 }; y;",
+                66,
+            ),
+            ("let ok = true; let y = if !ok { 1 } else { 77 }; y;", 77),
+            (
+                "let x = 5; let y = if (x == 5) == true { 88 } else { 99 }; y;",
+                88,
+            ),
+        ]
+        .iter()
+        .enumerate()
+        {
+            let Some(code) = compile_and_run_qbe(source, index + 400) else {
                 return;
             };
             assert_eq!(code, *expected, "compiled result for `{source}`");

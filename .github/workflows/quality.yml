@@ -40,7 +40,7 @@ jobs:
           qbe -h
       - name: Run QBE backend smoke tests
         run: |
-          cargo test qbe_matches_interpreter_for_scalar_corpus_when_toolchain_is_available -- --nocapture
+          cargo test qbe_ -- --nocapture
           cargo test --test release_readiness -- --nocapture
 
   docs:

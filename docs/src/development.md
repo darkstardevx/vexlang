@@ -22,8 +22,8 @@ git diff --check
 
 Tests cover expression evaluation, malformed input, type and scope errors,
 control flow, functions, diagnostics, CLI behavior, and experimental QBE IL.
-CI runs formatting, tests, Clippy, QBE backend smoke tests, documentation tests,
-and the MSRV checks on every push and pull request.
+CI runs formatting, tests, Clippy, QBE backend conformance/smoke tests,
+documentation tests, and the MSRV checks on every push and pull request.
 
 When changing syntax, update the authoritative grammar in `src/vex.pest`, the
 language reference, focused tests, and any diagnostic examples together.

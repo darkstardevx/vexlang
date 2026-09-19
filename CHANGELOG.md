@@ -14,6 +14,8 @@
 - Hardened experimental QBE scalar runtime semantics with distinct generated
   traps for i32 overflow (`101`), division by zero (`102`), and signed division
   overflow (`103`).
+- Expanded compiled-vs-interpreted QBE conformance coverage for scalar
+  arithmetic, control flow, functions, booleans, and runtime traps.
 
 ## 0.1.0-alpha.1
 
