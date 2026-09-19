@@ -37,6 +37,9 @@
 
 Vex remains an alpha prototype; syntax and APIs may change.
 
+The planned map mutation and iteration work remains deferred until collection
+types share a common representation; non-string keys are not silently added.
+
 ## Unreleased
 
 - Added user-defined record declarations (`record Name { field: type, ... }`),
