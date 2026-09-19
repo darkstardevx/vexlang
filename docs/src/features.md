@@ -50,10 +50,11 @@ into the IR. No target artifact is emitted after a failure.
 
 The backend contract specifies calling convention, entry point, checked scalar
 integer overflow/division traps, control-flow lowering, and runtime boundaries.
-The experimental QBE emitter lowers target traps to `exit(101)` followed by
-`hlt`. The `Backend` trait is the boundary used by the textual target emitter
-and experimental QBE emitter; Cranelift output is intentionally not
-implemented.
+The experimental QBE emitter lowers target traps to distinct process exits
+followed by `hlt`: `101` for checked `i32` overflow, `102` for division by
+zero, and `103` for signed division overflow (`i32::MIN / -1`). The `Backend`
+trait is the boundary used by the textual target emitter and experimental QBE
+emitter; Cranelift output is intentionally not implemented.
 
 ## Public release posture
 

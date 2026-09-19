@@ -44,4 +44,6 @@ cargo run -- qbe program.vex > program.ssa
 stable, human-readable IR artifact instead. `qbe` emits QBE IL for the verified
 scalar subset only; it does not assemble, link, or package a native executable.
 Unsupported language types and backend features fail explicitly with a source
-diagnostic or target-boundary error.
+diagnostic or target-boundary error. If experimental QBE output is assembled
+and run, target runtime traps currently exit with `101` for checked `i32`
+overflow, `102` for division by zero, and `103` for signed division overflow.

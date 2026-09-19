@@ -204,7 +204,8 @@ The first native target consumes only verified IR containing `i32`, `bool`,
 `unit`, calls to declared functions, and structured `if`/`while`/loop-control.
 The contract documents the calling convention, checked integer overflow and
 division traps, control-flow model, runtime boundary, and `vex_main` entry
-point.
+point. Experimental QBE trap exits are `101` for checked `i32` overflow, `102`
+for division by zero, and `103` for signed division overflow.
 Strings, `u64`, records, arrays, field projection, indexed mutation, enums,
 `Result`, maps, and I/O builtins are currently deferred because no runtime ABI
 has been specified. The `Backend` trait is the boundary used by both the

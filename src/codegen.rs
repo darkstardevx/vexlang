@@ -248,6 +248,23 @@ fn emit_qbe(program: &IrProgram) -> Result<String, BackendError> {
     Ok(out)
 }
 
+#[derive(Clone, Copy)]
+enum TrapKind {
+    Overflow,
+    DivisionByZero,
+    DivisionOverflow,
+}
+
+impl TrapKind {
+    fn exit_code(self) -> i32 {
+        match self {
+            Self::Overflow => 101,
+            Self::DivisionByZero => 102,
+            Self::DivisionOverflow => 103,
+        }
+    }
+}
+
 struct QbeEmitter {
     allocations: Vec<String>,
     body: String,
@@ -359,12 +376,12 @@ impl QbeEmitter {
         self.current_block_terminated = true;
     }
 
-    fn emit_trap_if(&mut self, cond: &str) {
+    fn emit_trap_if(&mut self, cond: &str, kind: TrapKind) {
         let trap_lbl = self.fresh_label("trap");
         let ok_lbl = self.fresh_label("trap_ok");
         self.emit_branch(cond, &trap_lbl, &ok_lbl);
         self.emit_label(&trap_lbl);
-        self.emit_instruction("call $exit(w 101)");
+        self.emit_instruction(&format!("call $exit(w {})", kind.exit_code()));
         self.emit_hlt();
         self.emit_label(&ok_lbl);
     }
@@ -382,7 +399,7 @@ impl QbeEmitter {
         ));
         let overflow = self.fresh_temp();
         self.emit_instruction(&format!("{overflow} =w csltw {same_sign_overflow_bits}, 0"));
-        self.emit_trap_if(&overflow);
+        self.emit_trap_if(&overflow, TrapKind::Overflow);
         result
     }
 
@@ -399,7 +416,7 @@ impl QbeEmitter {
         ));
         let overflow = self.fresh_temp();
         self.emit_instruction(&format!("{overflow} =w csltw {overflow_bits}, 0"));
-        self.emit_trap_if(&overflow);
+        self.emit_trap_if(&overflow, TrapKind::Overflow);
         result
     }
 
@@ -416,7 +433,7 @@ impl QbeEmitter {
         self.emit_instruction(&format!("{roundtrip} =l extsw {result}"));
         let overflow = self.fresh_temp();
         self.emit_instruction(&format!("{overflow} =w cnel {wide}, {roundtrip}"));
-        self.emit_trap_if(&overflow);
+        self.emit_trap_if(&overflow, TrapKind::Overflow);
         result
     }
 
@@ -431,9 +448,8 @@ impl QbeEmitter {
         self.emit_instruction(&format!(
             "{div_overflow} =w and {min_left}, {neg_one_right}"
         ));
-        let bad = self.fresh_temp();
-        self.emit_instruction(&format!("{bad} =w or {zero}, {div_overflow}"));
-        self.emit_trap_if(&bad);
+        self.emit_trap_if(&zero, TrapKind::DivisionByZero);
+        self.emit_trap_if(&div_overflow, TrapKind::DivisionOverflow);
         let result = self.fresh_temp();
         self.emit_instruction(&format!("{result} =w div {left}, {right}"));
         result
@@ -442,7 +458,7 @@ impl QbeEmitter {
     fn emit_checked_neg(&mut self, value: &str) -> String {
         let overflow = self.fresh_temp();
         self.emit_instruction(&format!("{overflow} =w ceqw {value}, -2147483648"));
-        self.emit_trap_if(&overflow);
+        self.emit_trap_if(&overflow, TrapKind::Overflow);
         let result = self.fresh_temp();
         self.emit_instruction(&format!("{result} =w neg {value}"));
         result
@@ -804,6 +820,65 @@ mod tests {
         ir::lower(&build_ast(pairs).unwrap()).unwrap()
     }
 
+    fn qbe_toolchain_available() -> bool {
+        std::process::Command::new("qbe").arg("-h").output().is_ok()
+            && std::process::Command::new("cc")
+                .arg("--version")
+                .output()
+                .is_ok()
+    }
+
+    fn compile_and_run_qbe(source: &str, index: usize) -> Option<i32> {
+        if !qbe_toolchain_available() {
+            eprintln!("skipping optional QBE execution test: qbe or cc not found");
+            return None;
+        }
+
+        let qbe = super::QbeBackend.emit(&lower(source)).unwrap();
+        let dir = std::env::temp_dir().join(format!("vex-qbe-test-{}-{index}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let ssa = dir.join("program.ssa");
+        let asm = dir.join("program.s");
+        let driver = dir.join("driver.c");
+        let exe = dir.join("program");
+        std::fs::write(&ssa, qbe).unwrap();
+        std::fs::write(
+            &driver,
+            "extern int vex_main(void); int main(void) { return vex_main(); }\n",
+        )
+        .unwrap();
+
+        let assembly = std::process::Command::new("qbe")
+            .arg(&ssa)
+            .output()
+            .expect("qbe should run after availability check");
+        assert!(
+            assembly.status.success(),
+            "qbe rejected generated IL for `{source}`: {}",
+            String::from_utf8_lossy(&assembly.stderr)
+        );
+        std::fs::write(&asm, assembly.stdout).unwrap();
+
+        let cc = std::process::Command::new("cc")
+            .arg(&asm)
+            .arg(&driver)
+            .arg("-o")
+            .arg(&exe)
+            .output()
+            .expect("cc should run after availability check");
+        assert!(
+            cc.status.success(),
+            "cc rejected QBE assembly for `{source}`: {}",
+            String::from_utf8_lossy(&cc.stderr)
+        );
+
+        let run = std::process::Command::new(&exe).status().unwrap();
+        let code = run.code();
+        let _ = std::fs::remove_dir_all(&dir);
+        code
+    }
+
     #[test]
     fn contract_invariants_are_explicit() {
         assert_eq!(FIRST_TARGET.entry_point, "vex_main");
@@ -871,42 +946,42 @@ mod tests {
 
     #[test]
     fn qbe_emits_runtime_traps_for_i32_errors() {
-        for source in [
-            "let x = 2147483647; x + 1;",
-            "let x = -2147483647 - 1; -x;",
-            "let x = -2147483647 - 1; x / -1;",
-            "let x = 1; let y = 0; x / y;",
-            "let x = 50000; x * x;",
+        for (source, expected_exit) in [
+            ("let x = 2147483647; x + 1;", 101),
+            ("let x = -2147483647 - 1; -x;", 101),
+            ("let x = 50000; x * x;", 101),
+            ("let x = 1; let y = 0; x / y;", 102),
+            ("let x = -2147483647 - 1; x / -1;", 103),
         ] {
             let qbe = super::QbeBackend.emit(&lower(source)).unwrap();
             assert!(qbe.contains("@trap_"), "missing trap block for {source}");
             assert!(
-                qbe.contains("call $exit(w 101)"),
-                "missing trap exit for {source}"
+                qbe.contains(&format!("call $exit(w {expected_exit})")),
+                "missing trap exit {expected_exit} for {source}"
             );
             assert!(qbe.contains("hlt"), "missing hlt for {source}");
         }
     }
 
     #[test]
-    fn qbe_matches_interpreter_for_scalar_corpus_when_toolchain_is_available() {
-        if std::process::Command::new("qbe")
-            .arg("-h")
-            .output()
-            .is_err()
+    fn qbe_trap_exit_codes_match_runtime_failures_when_toolchain_is_available() {
+        for (index, (source, expected_exit)) in [
+            ("let x = 2147483647; x + 1;", 101),
+            ("let x = 1; let y = 0; x / y;", 102),
+            ("let x = -2147483647 - 1; x / -1;", 103),
+        ]
+        .iter()
+        .enumerate()
         {
-            eprintln!("skipping optional QBE differential test: qbe not found");
-            return;
+            let Some(code) = compile_and_run_qbe(source, index) else {
+                return;
+            };
+            assert_eq!(code, *expected_exit, "compiled trap code for `{source}`");
         }
-        if std::process::Command::new("cc")
-            .arg("--version")
-            .output()
-            .is_err()
-        {
-            eprintln!("skipping optional QBE differential test: cc not found");
-            return;
-        }
+    }
 
+    #[test]
+    fn qbe_matches_interpreter_for_scalar_corpus_when_toolchain_is_available() {
         for (index, (source, expected)) in [
             ("1 + 2 * 3;", 7),
             ("fn f(n: i32) -> i32 { if n < 2 { return 1; } f(n - 1) + f(n - 2) } f(6);", 13),
@@ -915,51 +990,10 @@ mod tests {
         .iter()
         .enumerate()
         {
-            let qbe = super::QbeBackend.emit(&lower(source)).unwrap();
-            let dir = std::env::temp_dir().join(format!(
-                "vex-qbe-test-{}-{index}",
-                std::process::id()
-            ));
-            let _ = std::fs::remove_dir_all(&dir);
-            std::fs::create_dir_all(&dir).unwrap();
-            let ssa = dir.join("program.ssa");
-            let asm = dir.join("program.s");
-            let driver = dir.join("driver.c");
-            let exe = dir.join("program");
-            std::fs::write(&ssa, qbe).unwrap();
-            std::fs::write(
-                &driver,
-                "extern int vex_main(void); int main(void) { return vex_main(); }\n",
-            )
-            .unwrap();
-
-            let assembly = std::process::Command::new("qbe")
-                .arg(&ssa)
-                .output()
-                .expect("qbe should run after availability check");
-            assert!(
-                assembly.status.success(),
-                "qbe rejected generated IL for `{source}`: {}",
-                String::from_utf8_lossy(&assembly.stderr)
-            );
-            std::fs::write(&asm, assembly.stdout).unwrap();
-
-            let cc = std::process::Command::new("cc")
-                .arg(&asm)
-                .arg(&driver)
-                .arg("-o")
-                .arg(&exe)
-                .output()
-                .expect("cc should run after availability check");
-            assert!(
-                cc.status.success(),
-                "cc rejected QBE assembly for `{source}`: {}",
-                String::from_utf8_lossy(&cc.stderr)
-            );
-
-            let run = std::process::Command::new(&exe).status().unwrap();
-            assert_eq!(run.code(), Some(*expected), "compiled result for `{source}`");
-            let _ = std::fs::remove_dir_all(&dir);
+            let Some(code) = compile_and_run_qbe(source, index + 100) else {
+                return;
+            };
+            assert_eq!(code, *expected, "compiled result for `{source}`");
         }
     }
 }

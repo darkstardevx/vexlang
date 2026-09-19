@@ -11,8 +11,9 @@
 - Added a backend trait boundary and an experimental `QbeBackend`/`qbe` CLI
   command for the verified scalar subset without producing fake native
   executable artifacts.
-- Hardened experimental QBE scalar runtime semantics with generated traps for
-  i32 overflow, division by zero, and signed division overflow.
+- Hardened experimental QBE scalar runtime semantics with distinct generated
+  traps for i32 overflow (`101`), division by zero (`102`), and signed division
+  overflow (`103`).
 
 ## 0.1.0-alpha.1
 
