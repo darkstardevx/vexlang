@@ -1,7 +1,7 @@
 use pest::Parser;
 use pest::iterators::{Pair, Pairs};
 
-use crate::ast::{Expr, Op, Stmt, Type};
+use crate::ast::{EnumVariant, Expr, Op, Stmt, Type};
 use crate::parser::{Rule, VexParser};
 
 #[derive(Debug, Clone, PartialEq)]
@@ -74,6 +74,31 @@ fn build_stmt(pair: Pair<Rule>) -> Result<Stmt, BuildError> {
                 fields.push((field_name, ty));
             }
             Ok(Stmt::Record { name, fields })
+        }
+        Rule::enum_decl => {
+            let mut parts = inner.into_inner();
+            let name = parts.next().unwrap().as_str().to_string();
+            let variants = parts
+                .map(|variant| {
+                    let mut p = variant.into_inner();
+                    let variant_name = p.next().unwrap().as_str().to_string();
+                    let fields = p
+                        .filter(|part| part.as_rule() == Rule::enum_field)
+                        .map(|part| {
+                            let mut field = part.into_inner();
+                            (
+                                field.next().unwrap().as_str().to_string(),
+                                parse_type(field.next().unwrap().as_str()),
+                            )
+                        })
+                        .collect();
+                    EnumVariant {
+                        name: variant_name,
+                        fields,
+                    }
+                })
+                .collect();
+            Ok(Stmt::Enum { name, variants })
         }
         Rule::assign => {
             let mut parts = inner.into_inner();
@@ -383,7 +408,69 @@ impl<'a> TextParser<'a> {
             "false" => Ok(Expr::Bool(false)),
             _ => {
                 self.ws();
-                let mut value = if self.peek() == Some(b'{') {
+                let mut value = if self.peek() == Some(b':')
+                    && self.input.get(self.pos + 1) == Some(&b':')
+                {
+                    self.pos += 2;
+                    let variant_start = self.pos;
+                    while self
+                        .peek()
+                        .is_some_and(|c| c.is_ascii_alphanumeric() || c == b'_')
+                    {
+                        self.pos += 1;
+                    }
+                    if variant_start == self.pos {
+                        return Err(BuildError("enum variant requires a name".into()));
+                    }
+                    let variant =
+                        String::from_utf8_lossy(&self.input[variant_start..self.pos]).into_owned();
+                    let mut fields = Vec::new();
+                    self.ws();
+                    if self.peek() == Some(b'{') {
+                        self.pos += 1;
+                        self.ws();
+                        if self.peek() != Some(b'}') {
+                            loop {
+                                let field_start = self.pos;
+                                while self
+                                    .peek()
+                                    .is_some_and(|c| c.is_ascii_alphanumeric() || c == b'_')
+                                {
+                                    self.pos += 1;
+                                }
+                                if self.pos == field_start || self.peek() != Some(b':') {
+                                    return Err(BuildError(
+                                        "enum field requires `name: value`".into(),
+                                    ));
+                                }
+                                let field =
+                                    String::from_utf8_lossy(&self.input[field_start..self.pos])
+                                        .into_owned();
+                                self.pos += 1;
+                                fields.push((field, self.binary(0)?));
+                                self.ws();
+                                if self.peek() != Some(b',') {
+                                    break;
+                                }
+                                self.pos += 1;
+                                self.ws();
+                                if self.peek() == Some(b'}') {
+                                    break;
+                                }
+                            }
+                        }
+                        self.ws();
+                        if self.peek() != Some(b'}') {
+                            return Err(BuildError("missing `}` in enum variant".into()));
+                        }
+                        self.pos += 1;
+                    }
+                    Expr::EnumVariant {
+                        enum_name: name.into_owned(),
+                        variant,
+                        fields,
+                    }
+                } else if self.peek() == Some(b'{') {
                     self.pos += 1;
                     let mut fields = Vec::new();
                     self.ws();

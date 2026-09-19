@@ -6,11 +6,13 @@ struct Function {
     params: Vec<Type>,
     ret: Type,
 }
+type EnumDefinitions = HashMap<String, Vec<(String, Vec<(String, Type)>)>>;
 
 pub struct SemanticAnalyzer {
     symbols: HashMap<String, Type>,
     functions: HashMap<String, Function>,
     records: HashMap<String, Vec<(String, Type)>>,
+    enums: EnumDefinitions,
 }
 
 impl SemanticAnalyzer {
@@ -19,9 +21,29 @@ impl SemanticAnalyzer {
             symbols: HashMap::new(),
             functions: HashMap::new(),
             records: HashMap::new(),
+            enums: HashMap::new(),
         }
     }
     pub fn analyze(&mut self, stmts: &[Stmt]) -> Result<(), String> {
+        for s in stmts {
+            if let Stmt::Enum { name, variants } = s {
+                if self.enums.contains_key(name) || self.records.contains_key(name) {
+                    return Err(format!("duplicate type `{name}`"));
+                }
+                let mut seen = std::collections::HashSet::new();
+                let mut definitions = Vec::new();
+                for variant in variants {
+                    if !seen.insert(&variant.name) {
+                        return Err(format!("duplicate enum variant `{}`", variant.name));
+                    }
+                    for (_, ty) in &variant.fields {
+                        Self::check_supported(ty)?;
+                    }
+                    definitions.push((variant.name.clone(), variant.fields.clone()));
+                }
+                self.enums.insert(name.clone(), definitions);
+            }
+        }
         for s in stmts {
             if let Stmt::Record { name, fields } = s {
                 if self.records.contains_key(name) {
@@ -84,8 +106,8 @@ impl SemanticAnalyzer {
     fn check_type(&self, t: &Type) -> Result<(), String> {
         Self::check_supported(t)?;
         if let Type::Custom(name) = t {
-            if !self.records.contains_key(name) {
-                return Err(format!("undefined record `{name}`"));
+            if !self.records.contains_key(name) && !self.enums.contains_key(name) {
+                return Err(format!("undefined type `{name}`"));
             }
         }
         Ok(())
@@ -110,7 +132,7 @@ impl SemanticAnalyzer {
         ret: Option<&Type>,
     ) -> Result<(), String> {
         match s {
-            Stmt::Record { .. } => {}
+            Stmt::Record { .. } | Stmt::Enum { .. } => {}
             Stmt::Function {
                 params,
                 body,
@@ -265,6 +287,39 @@ impl SemanticAnalyzer {
                     }
                 }
                 Ok(Type::Custom(name.clone()))
+            }
+            Expr::EnumVariant {
+                enum_name,
+                variant,
+                fields,
+            } => {
+                let variants = self
+                    .enums
+                    .get(enum_name)
+                    .ok_or_else(|| format!("undefined enum `{enum_name}`"))?;
+                let schema = variants
+                    .iter()
+                    .find(|(name, _)| name == variant)
+                    .ok_or_else(|| format!("unknown variant `{variant}` on enum `{enum_name}`"))?;
+                if fields.len() != schema.1.len() {
+                    return Err(format!(
+                        "enum variant `{enum_name}::{variant}` requires {} fields",
+                        schema.1.len()
+                    ));
+                }
+                for (field, value) in fields {
+                    let expected = schema
+                        .1
+                        .iter()
+                        .find(|(name, _)| name == field)
+                        .ok_or_else(|| format!("unknown field `{field}` on variant `{variant}`"))?;
+                    if !Self::compatible(&expected.1, &self.check_expr(value, scope, loops, ret)?) {
+                        return Err(format!(
+                            "field `{field}` on variant `{variant}` has the wrong type"
+                        ));
+                    }
+                }
+                Ok(Type::Custom(enum_name.clone()))
             }
             Expr::Field(value, field) => {
                 let ty = self.check_expr(value, scope, loops, ret)?;

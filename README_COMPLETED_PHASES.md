@@ -74,3 +74,10 @@ and project/package management remain future work.
 - Added evaluator indexing, nested mutation, and bounds diagnostics.
 - Added typed textual-IR array and index lowering.
 - Maps and generics are explicitly deferred.
+
+## Phase 10 — Enums and sum values
+
+- Added enum declarations with unit and named-field variants.
+- Added typed enum construction, semantic validation, interpreter values, and
+  textual IR rendering.
+- Pattern matching and exhaustive checking remain deferred.

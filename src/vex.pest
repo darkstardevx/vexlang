@@ -10,8 +10,9 @@ KW_CONTINUE = _{ "continue" }
 KW_FN = _{ "fn" }
 KW_RETURN = _{ "return" }
 KW_RECORD = _{ "record" }
+KW_ENUM = _{ "enum" }
 
-ident = @{ !(KW_LET | KW_IF | KW_ELSE | KW_WHILE | KW_BREAK | KW_CONTINUE | KW_FN | KW_RETURN | "record")
+ident = @{ !(KW_LET | KW_IF | KW_ELSE | KW_WHILE | KW_BREAK | KW_CONTINUE | KW_FN | KW_RETURN | KW_ENUM | "record")
   ~ (ASCII_ALPHA | "_") ~ (ASCII_ALPHANUMERIC | "_")* }
 int = @{ ASCII_DIGIT+ }
 string = @{ "\"" ~ ( "\\\"" | "\\\\" | !"\"" ~ ANY )* ~ "\"" }
@@ -19,15 +20,19 @@ type_name = { array_type | "i32" | "u64" | "f64" | "bool" | "string" | "res" | i
 array_type = { "[" ~ type_name ~ "]" }
 field_decl = { ident ~ ":" ~ type_name }
 record_decl = { "record" ~ ident ~ "{" ~ (field_decl ~ ("," ~ field_decl)*)? ~ ","? ~ "}" }
+enum_field = { ident ~ ":" ~ type_name }
+enum_variant = { ident ~ ("(" ~ (type_name ~ ("," ~ type_name)*)? ~ ")" | "{" ~ (enum_field ~ ("," ~ enum_field)*)? ~ "}")? }
+enum_decl = { "enum" ~ ident ~ "{" ~ (enum_variant ~ ("," ~ enum_variant)*)? ~ ","? ~ "}" }
 
 unary_op = { "-" | "!" }
 record_field = { ident ~ ":" ~ expr }
 record_name = @{ !("true" | "false") ~ ident }
+enum_variant_expr = { ident ~ "::" ~ ident ~ ("{" ~ (record_field ~ ("," ~ record_field)*)? ~ ","? ~ "}")? }
 record_expr = { record_name ~ "{" ~ (record_field ~ ("," ~ record_field)*)? ~ ","? ~ "}" }
 field_access = { (call | ident | paren) ~ ("." ~ ident)+ }
 array = { "[" ~ (expr ~ ("," ~ expr)*)? ~ ","? ~ "]" }
 index_access = { (call | ident | paren | array) ~ ("[" ~ expr ~ "]")+ }
-atom = _{ int | string | if_expr | block | record_expr | field_access | index_access | call | array | ident | paren }
+atom = _{ int | string | if_expr | block | enum_variant_expr | record_expr | field_access | index_access | call | array | ident | paren }
 call = { ident ~ "(" ~ (expr ~ ("," ~ expr)*)? ~ ")" }
 paren = { "(" ~ expr ~ ")" }
 expr = { term ~ (bin_op ~ term)* }
@@ -47,5 +52,5 @@ assign = { assign_target ~ "=" ~ expr ~ ";" | ident ~ "=" ~ expr ~ ";" }
 param = { ident ~ ":" ~ type_name }
 fn_decl = { KW_FN ~ ident ~ "(" ~ (param ~ ("," ~ param)*)? ~ ")" ~ ("->" ~ type_name)? ~ block }
 expr_stmt = { expr ~ ";" }
-stmt = { record_decl | fn_decl | let_decl | assign | if_stmt | while_stmt | break_stmt | continue_stmt | return_stmt | expr_stmt }
+stmt = { enum_decl | record_decl | fn_decl | let_decl | assign | if_stmt | while_stmt | break_stmt | continue_stmt | return_stmt | expr_stmt }
 program = { SOI ~ stmt* ~ EOI }

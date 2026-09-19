@@ -16,6 +16,7 @@ pub enum IrType {
     Unit,
     Record(String),
     Array(Box<IrType>),
+    Enum(String),
 }
 
 impl std::fmt::Display for IrType {
@@ -28,6 +29,7 @@ impl std::fmt::Display for IrType {
             Self::Unit => "unit",
             Self::Record(name) => return write!(f, "record {name}"),
             Self::Array(element) => return write!(f, "[{element}]"),
+            Self::Enum(name) => return write!(f, "enum {name}"),
         })
     }
 }
@@ -56,6 +58,11 @@ pub enum IrExprKind {
     Record(String, Vec<(String, IrExpr)>),
     Field(Box<IrExpr>, String),
     Array(Vec<IrExpr>),
+    EnumVariant {
+        enum_name: String,
+        variant: String,
+        fields: Vec<(String, IrExpr)>,
+    },
     Index(Box<IrExpr>, Box<IrExpr>),
 }
 
@@ -65,6 +72,10 @@ pub enum IrStmt {
     Record {
         name: String,
         fields: Vec<(String, IrType)>,
+    },
+    Enum {
+        name: String,
+        variants: Vec<(String, Vec<(String, IrType)>)>,
     },
     Let {
         name: String,
@@ -191,6 +202,22 @@ fn lower_stmt(stmt: &Stmt, functions: &Functions, scope: &mut Scope) -> Result<I
                 .map(|(n, t)| Ok((n.clone(), ir_type(t)?)))
                 .collect::<Result<_, _>>()?,
         }),
+        Stmt::Enum { name, variants } => Ok(IrStmt::Enum {
+            name: name.clone(),
+            variants: variants
+                .iter()
+                .map(|variant| {
+                    Ok((
+                        variant.name.clone(),
+                        variant
+                            .fields
+                            .iter()
+                            .map(|(field, ty)| Ok((field.clone(), ir_type(ty)?)))
+                            .collect::<Result<_, LowerError>>()?,
+                    ))
+                })
+                .collect::<Result<_, LowerError>>()?,
+        }),
         Stmt::Function {
             name,
             params,
@@ -302,6 +329,24 @@ fn lower_expr(expr: &Expr, functions: &Functions, scope: &mut Scope) -> Result<I
             (
                 IrType::Record(name.clone()),
                 IrExprKind::Record(name.clone(), fields),
+            )
+        }
+        Expr::EnumVariant {
+            enum_name,
+            variant,
+            fields,
+        } => {
+            let fields = fields
+                .iter()
+                .map(|(field, value)| Ok((field.clone(), lower_expr(value, functions, scope)?)))
+                .collect::<Result<Vec<_>, LowerError>>()?;
+            (
+                IrType::Enum(enum_name.clone()),
+                IrExprKind::EnumVariant {
+                    enum_name: enum_name.clone(),
+                    variant: variant.clone(),
+                    fields,
+                },
             )
         }
         Expr::Field(value, field) => {
@@ -417,6 +462,21 @@ fn render_stmt(stmt: &IrStmt, indent: usize, out: &mut String) {
                 .join(", ");
             out.push_str(&format!("{pad}record {name} {{ {fields} }}\n"));
         }
+        IrStmt::Enum { name, variants } => {
+            let variants = variants
+                .iter()
+                .map(|(variant, fields)| {
+                    let fields = fields
+                        .iter()
+                        .map(|(field, ty)| format!("{field}: {ty}"))
+                        .collect::<Vec<_>>()
+                        .join(", ");
+                    format!("{variant} {{ {fields} }}")
+                })
+                .collect::<Vec<_>>()
+                .join(", ");
+            out.push_str(&format!("{pad}enum {name} {{ {variants} }}\n"));
+        }
         IrStmt::Function(function) => {
             let params = function
                 .params
@@ -498,6 +558,11 @@ fn display_expr(expr: &IrExpr) -> String {
         IrExprKind::If { .. } => "if ...".into(),
         IrExprKind::Call(name, args) => format!("{name}({} args)", args.len()),
         IrExprKind::Record(name, fields) => format!("{name} {{ {} fields }}", fields.len()),
+        IrExprKind::EnumVariant {
+            enum_name,
+            variant,
+            fields,
+        } => format!("{enum_name}::{variant} {{ {} fields }}", fields.len()),
         IrExprKind::Field(value, field) => format!("{}.{}", display_expr(value), field),
         IrExprKind::Array(values) => format!("[{} items]", values.len()),
         IrExprKind::Index(value, index) => {

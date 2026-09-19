@@ -440,4 +440,18 @@ mod tests {
                 .contains("unknown field")
         );
     }
+
+    #[test]
+    fn evaluates_enum_variants() {
+        assert_eq!(
+            run(
+                "enum Maybe { None, Some { value: i32 } } let value: Maybe = Maybe::Some { value: 7 }; value;"
+            ),
+            Ok(Value::Enum {
+                enum_name: "Maybe".into(),
+                variant: "Some".into(),
+                fields: [("value".into(), Value::Int(7))].into_iter().collect(),
+            })
+        );
+    }
 }

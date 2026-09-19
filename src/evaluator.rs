@@ -63,6 +63,7 @@ fn eval_stmt(s: &Stmt, e: &mut Env, f: &Functions, d: usize) -> Result<Control, 
     match s {
         Stmt::Function { .. } => Ok(Control::Value(Value::Unit)),
         Stmt::Record { .. } => Ok(Control::Value(Value::Unit)),
+        Stmt::Enum { .. } => Ok(Control::Value(Value::Unit)),
         Stmt::Let { name, ty, value } => {
             let v = match eval_expr(value, e, f, d)? {
                 Control::Value(v) => v,
@@ -194,6 +195,21 @@ fn eval_expr(x: &Expr, e: &mut Env, f: &Functions, d: usize) -> Result<Control, 
                 values.insert(field.clone(), value_of(eval_expr(expr, e, f, d)?)?);
             }
             Ok(Control::Value(Value::Record(name.clone(), values)))
+        }
+        Expr::EnumVariant {
+            enum_name,
+            variant,
+            fields,
+        } => {
+            let mut values = BTreeMap::new();
+            for (field, expr) in fields {
+                values.insert(field.clone(), value_of(eval_expr(expr, e, f, d)?)?);
+            }
+            Ok(Control::Value(Value::Enum {
+                enum_name: enum_name.clone(),
+                variant: variant.clone(),
+                fields: values,
+            }))
         }
         Expr::Field(value, field) => {
             let value = value_of(eval_expr(value, e, f, d)?)?;
@@ -355,7 +371,10 @@ fn validate(n: &str, t: &Type, v: &Value) -> Result<(), EvalError> {
         Type::Bool => matches!(v, Value::Bool(_)),
         Type::String => matches!(v, Value::String(_)),
         Type::Unit => matches!(v, Value::Unit),
-        Type::Custom(name) => matches!(v, Value::Record(value_name, _) if value_name == name),
+        Type::Custom(name) => {
+            matches!(v, Value::Record(value_name, _) if value_name == name)
+                || matches!(v, Value::Enum { enum_name, .. } if enum_name == name)
+        }
         Type::Array(element) => {
             matches!(v, Value::Array(values) if values.iter().all(|value| validate(n, element, value).is_ok()))
         }
@@ -395,6 +414,11 @@ fn display(v: &Value) -> String {
         Value::Unit => "()".into(),
         Value::Record(name, fields) => format!("{name}{{{} fields}}", fields.len()),
         Value::Array(values) => format!("[{} items]", values.len()),
+        Value::Enum {
+            enum_name,
+            variant,
+            fields,
+        } => format!("{enum_name}::{variant}{{{} fields}}", fields.len()),
     }
 }
 fn set_index(array: &mut Value, indices: &[usize], value: Value) -> Result<(), EvalError> {

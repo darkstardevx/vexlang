@@ -60,9 +60,18 @@ let point: Point = Point { x: 2, y: 3 };
 point.x + point.y;
 ```
 
-Records are supported by the interpreter and textual IR. Arrays and indexing
-are supported as described below; maps, modules/imports, structured
-errors/results, and project configuration remain deferred.
+Records are supported by the interpreter and textual IR. Sum types use `enum`
+declarations and construct tagged values with `EnumName::Variant`:
+
+```vex
+enum Maybe { None, Some { value: i32 } }
+let answer: Maybe = Maybe::Some { value: 42 };
+```
+
+Enum variants are checked against their declared fields and preserved as tagged
+runtime values and textual IR. Pattern matching is not yet implemented.
+Arrays and indexing are supported as described below; maps, modules/imports,
+structured errors/results, and project configuration remain deferred.
 
 ## Arrays and indexing
 

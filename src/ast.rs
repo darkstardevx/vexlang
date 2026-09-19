@@ -55,6 +55,11 @@ pub enum Expr {
     Field(Box<Expr>, String),
     Array(Vec<Expr>),
     Index(Box<Expr>, Box<Expr>),
+    EnumVariant {
+        enum_name: String,
+        variant: String,
+        fields: Vec<(String, Expr)>,
+    },
 }
 
 #[allow(clippy::enum_variant_names)]
@@ -69,6 +74,10 @@ pub enum Stmt {
     Record {
         name: String,
         fields: Vec<(String, Type)>,
+    },
+    Enum {
+        name: String,
+        variants: Vec<EnumVariant>,
     },
     Let {
         name: String,
@@ -108,4 +117,15 @@ pub enum Value {
     Unit,
     Record(String, BTreeMap<String, Value>),
     Array(Vec<Value>),
+    Enum {
+        enum_name: String,
+        variant: String,
+        fields: BTreeMap<String, Value>,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct EnumVariant {
+    pub name: String,
+    pub fields: Vec<(String, Type)>,
 }
