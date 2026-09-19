@@ -81,6 +81,28 @@ and project/package management remain future work.
   `:load`, and `:quit` commands.
 - Failed snippets are rolled back so a typo does not poison the session.
 
+## Phase 17 — Local modules and projects
+
+- Deferred: the existing `project` reader remains metadata-only; imports,
+  module graph resolution, project entrypoint selection, and project
+  subcommands require a larger manifest and filesystem design.
+
+## Phase 18 — Mutable maps and iteration
+
+- Deferred: maps remain string-keyed and immutable through the public
+  expression API; mutation and iteration need a shared collection abstraction.
+
+## Phase 19 — Type-system foundations
+
+- Deferred: aliases, tuples, generic parameters, and conversions need a
+  shared type representation before they can be added safely.
+
+## Phase 20 — Compiler readiness
+
+- Deferred: AST-wide spans, structured diagnostics, IR validation, and backend
+  prerequisites remain ahead of native code generation. No fake native output
+  is emitted.
+
 ## Phase 9 — Typed collections and indexing
 
 - Added typed array literals, including empty and nested arrays.
