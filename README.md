@@ -15,7 +15,7 @@ released under the [MIT license](LICENSE).
 
 ```text
 RUNTIME   [ONLINE]   interpreter + typed textual IR
-SAFETY    [GREEN]    diagnostics, limits, MSRV, CI gates
+SAFETY    [GREEN]    text/JSON diagnostics, limits, MSRV, CI gates
 BACKEND   [EXPERIMENTAL] verified scalar QBE IL; no native executable artifacts
 CHANNEL   [ALPHA]   syntax and APIs may evolve
 ```
@@ -81,6 +81,7 @@ cargo run -- build program.vex
 cargo run -- ir program.vex
 cargo run -- target program.vex
 cargo run -- qbe program.vex
+cargo run -- --json check program.vex
 ```
 
 `fmt` validates source and writes it to stdout. `build` and `ir` validate and
@@ -102,9 +103,26 @@ printf '1 + 2;' | cargo run -- -
 ```
 
 Diagnostics include stable error codes, file/line/column locations, source
-underlines, and suggestions. Exit status `0` means success, `1` means a source
-or test failure, `2` means a CLI or I/O error, and `3` means an explicitly
-unsupported operation.
+underlines, and suggestions. Use `--json` or `--diagnostic-format=json` before
+a command to emit one machine-readable diagnostic object on stderr. Exit status
+`0` means success, `1` means a source or test failure, `2` means a CLI or I/O
+error, and `3` means an explicitly unsupported target/backend operation.
+
+### Usage warnings
+
+- Vex is still alpha software; syntax, IR details, and experimental backend
+  behavior may change before a production release.
+- `qbe` emits QBE IL only. It does **not** assemble, link, package, or publish a
+  native executable.
+- The QBE backend currently accepts only the verified scalar subset: `i32`,
+  `bool`, `unit`, declared function calls, locals, structured control flow,
+  loop control, returns, and checked scalar arithmetic.
+- Interpreter features such as strings, `u64`, records, arrays, maps, enums,
+  `Result`, and I/O builtins are rejected at the `vex-scalar-v1` target
+  boundary until their runtime ABI is specified.
+- If QBE output is assembled and run manually, runtime traps exit with `101`
+  for checked `i32` overflow, `102` for division by zero, and `103` for signed
+  division overflow.
 
 ## 🗺️ Project roadmap
 
@@ -126,15 +144,17 @@ VEX
 │   ├── ✅ typed arrays and indexing
 │   ├── maps, generics, and structured errors
 │   └── modules and project configuration
-├── 🔭 Phase 10 Production diagnostics
+├── 🚧 Milestone 12 Production diagnostics
+│   ├── ✅ initial machine-readable JSON diagnostics
 │   ├── AST-wide source spans
 │   ├── multi-span diagnostics
-│   └── machine-readable output
-├── 🔭 Phase 11 Native compilation
-│   ├── verified backend
-│   ├── compiled/interpreted differential tests
-│   └── reproducible build artifacts
-└── 🔭 Phase 12 Ecosystem and tooling
+│   └── multi-error recovery
+├── 🚧 Milestone 13 Native compilation
+│   ├── ✅ experimental scalar QBE IL backend
+│   ├── ✅ compiled/interpreted QBE conformance smoke tests
+│   ├── target expansion, starting with `u64` design
+│   └── reproducible native executable artifacts
+└── 🔭 Milestone 14 Ecosystem and tooling
     ├── package management
     ├── LSP/editor integration
     └── formatter and compatibility policies
@@ -152,10 +172,14 @@ cargo clippy --all-targets -- -D warnings
 cargo +1.85.0 test --all-targets
 cargo +1.85.0 clippy --all-targets -- -D warnings
 mdbook test docs
+./scripts/qbe-smoke.sh
 ```
 
-The release-readiness suite includes compatibility, golden diagnostic, and
-generated-input tests, plus an opt-in performance smoke test:
+The QBE smoke script requires `qbe` and `cc` on `PATH`; use
+`PREFIX="$HOME/.local" ./scripts/install-qbe.sh` to install QBE locally. The
+release-readiness suite includes compatibility, golden diagnostic, JSON
+diagnostic, QBE fixture, and generated-input tests, plus an opt-in performance
+smoke test:
 
 ```sh
 cargo test --test release_readiness -- --ignored --nocapture
