@@ -16,6 +16,8 @@
   overflow (`103`).
 - Expanded compiled-vs-interpreted QBE conformance coverage for scalar
   arithmetic, control flow, functions, booleans, and runtime traps.
+- Added reusable QBE install/smoke scripts, QBE backend documentation, and
+  `u64` target design notes.
 
 ## 0.1.0-alpha.1
 

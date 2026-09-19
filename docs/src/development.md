@@ -20,6 +20,13 @@ mdbook test docs
 git diff --check
 ```
 
+For QBE-specific work, install QBE and run the backend smoke suite:
+
+```sh
+PREFIX="$HOME/.local" ./scripts/install-qbe.sh
+./scripts/qbe-smoke.sh
+```
+
 Tests cover expression evaluation, malformed input, type and scope errors,
 control flow, functions, diagnostics, CLI behavior, and experimental QBE IL.
 CI runs formatting, tests, Clippy, QBE backend conformance/smoke tests,

@@ -165,7 +165,8 @@ The minimum supported Rust version (MSRV) is **1.85.0**, matching Rust 2024.
 The complete [Vex mdBook documentation](docs/src/intro.md) includes the
 [language reference](docs/src/language.md), [CLI and exit codes](docs/src/cli.md),
 [diagnostic format](docs/src/diagnostics.md), [feature status](docs/src/features.md),
-[development gates](docs/src/development.md), and [roadmap](docs/src/milestones.md).
+[development gates](docs/src/development.md), [experimental QBE backend](docs/src/qbe.md),
+[`u64` target design notes](docs/src/u64-target-design.md), and [roadmap](docs/src/milestones.md).
 
 ## 📦 Public alpha release checklist
 
