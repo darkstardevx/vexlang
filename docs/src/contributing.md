@@ -16,6 +16,9 @@ and discussions for public questions and contribution coordination.
 Use the address in [`SECURITY.md`](../../SECURITY.md) for private security
 reports.
 
+Copy-ready text for the future `#welcome` and `#rules` Discord channels is
+maintained in the root [`CONTRIBUTING.md`](../../CONTRIBUTING.md).
+
 ## Required checks
 
 ```sh
