@@ -114,6 +114,26 @@ fn check_reports_multiple_undefined_variables() {
 }
 
 #[test]
+fn check_reports_multiple_parse_errors_when_recoverable() {
+    let output = vex("let = ;\nfn (\n", "check");
+    assert!(!output.status.success());
+    let diagnostic = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        diagnostic.matches("error[E1001]").count() >= 2,
+        "{diagnostic}"
+    );
+
+    let output = vex_args("let = ;\nfn (\n", &["--json", "check", "-"]);
+    assert!(!output.status.success());
+    let diagnostic = String::from_utf8_lossy(&output.stderr);
+    assert!(diagnostic.trim_start().starts_with('['));
+    assert!(
+        diagnostic.matches("\"code\":\"E1001\"").count() >= 2,
+        "{diagnostic}"
+    );
+}
+
+#[test]
 fn diagnostics_can_label_declaration_sites() {
     let output = vex("let x: bool = 1;\n", "check");
     assert!(!output.status.success());

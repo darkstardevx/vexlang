@@ -12,6 +12,7 @@ pub struct BuildError(pub String);
 pub struct SpannedStmt {
     pub stmt: Stmt,
     pub span: Span,
+    pub expr_spans: Vec<Span>,
 }
 
 impl std::fmt::Display for BuildError {
@@ -40,6 +41,7 @@ pub fn build_ast_with_spans(pairs: Pairs<Rule>) -> Result<Vec<SpannedStmt>, Buil
         .filter(|pair| pair.as_rule() == Rule::stmt)
         .map(|pair| {
             let span = pair.as_span();
+            let expr_spans = collect_expr_spans(pair.clone());
             let stmt = build_stmt(pair)?;
             Ok(SpannedStmt {
                 stmt,
@@ -47,9 +49,32 @@ pub fn build_ast_with_spans(pairs: Pairs<Rule>) -> Result<Vec<SpannedStmt>, Buil
                     start: span.start(),
                     end: span.end(),
                 },
+                expr_spans,
             })
         })
         .collect()
+}
+
+fn collect_expr_spans(pair: Pair<Rule>) -> Vec<Span> {
+    let mut spans = Vec::new();
+    collect_expr_spans_into(pair, &mut spans);
+    spans
+}
+
+fn collect_expr_spans_into(pair: Pair<Rule>, spans: &mut Vec<Span>) {
+    if matches!(
+        pair.as_rule(),
+        Rule::expr | Rule::if_expr | Rule::match_expr | Rule::block | Rule::array
+    ) {
+        let span = pair.as_span();
+        spans.push(Span {
+            start: span.start(),
+            end: span.end(),
+        });
+    }
+    for child in pair.into_inner() {
+        collect_expr_spans_into(child, spans);
+    }
 }
 
 fn build_stmt(pair: Pair<Rule>) -> Result<Stmt, BuildError> {
@@ -800,5 +825,12 @@ mod tests {
             "let y = x + 2;"
         );
         assert_eq!(&source[spanned[2].span.start..spanned[2].span.end], "y;");
+        assert!(spanned.iter().any(|stmt| !stmt.expr_spans.is_empty()));
+        assert!(
+            spanned[1]
+                .expr_spans
+                .iter()
+                .any(|span| &source[span.start..span.end] == "x + 2")
+        );
     }
 }

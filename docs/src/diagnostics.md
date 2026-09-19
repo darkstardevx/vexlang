@@ -52,10 +52,11 @@ and an optional `suggestion` field. When `check` can recover multiple semantic
 errors, JSON output is an array of diagnostic objects.
 
 Current recovery is intentionally conservative: undefined-variable and
-undefined-function checks can report multiple missing names in one invocation.
-Semantic diagnostics can also attach declaration-site labels for errors such as
-type mismatches. Broader multi-diagnostic recovery and full expression AST spans
-remain planned production-diagnostics work.
+undefined-function checks use analyzer-native multi-error collection, and simple
+line-oriented parse recovery can report multiple parse diagnostics in one
+`check` invocation. Semantic diagnostics can also attach declaration-site labels
+for errors such as type mismatches. Broader recovery and full expression AST
+span attachment remain planned production-diagnostics work.
 
 Diagnostics currently retain a relevant source span at the pipeline boundary.
 Per-node span storage in every AST value is planned refinement work; the

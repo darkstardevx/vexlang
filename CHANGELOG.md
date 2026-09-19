@@ -27,6 +27,9 @@
   multiple diagnostics are emitted.
 - Added declaration-site labels for selected semantic diagnostics such as type
   mismatches.
+- Added parser-collected expression spans, analyzer-native multi-error
+  collection for undefined names, and conservative line-oriented parse recovery
+  for `check`.
 
 ## 0.1.0-alpha.1
 

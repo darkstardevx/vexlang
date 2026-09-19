@@ -43,28 +43,98 @@ fn declaration_spans(source: &str, stmts: &[SpannedStmt]) -> HashMap<String, Spa
     spans
 }
 
+fn parse_error_diagnostic(source: &str, error: pest::error::Error<parser::Rule>) -> Diagnostic {
+    let (line, column) = match error.line_col {
+        LineColLocation::Pos(position) => position,
+        LineColLocation::Span(start, _) => start,
+    };
+    let offset = source
+        .lines()
+        .take(line.saturating_sub(1))
+        .map(|l| l.len() + 1)
+        .sum::<usize>()
+        + column.saturating_sub(1);
+    Diagnostic::new(
+        "E1001",
+        format!("parse error: {error}"),
+        Span {
+            start: offset,
+            end: offset + 1,
+        },
+    )
+    .with_suggestion("check the preceding expression and add a semicolon if needed")
+}
+
+fn semantic_diagnostic(
+    error: String,
+    source: &str,
+    declarations: &HashMap<String, Span>,
+) -> Diagnostic {
+    let needle = error.split('`').nth(1);
+    let mut diagnostic = Diagnostic::new("E2001", error.clone(), span_for(source, needle));
+    if error.contains("undefined variable") {
+        let span = diagnostic.span;
+        diagnostic = diagnostic
+            .with_label(span, "undefined name referenced here")
+            .with_suggestion("declare the variable with `let` before using it");
+    } else if error.contains("undefined function") {
+        let span = diagnostic.span;
+        diagnostic = diagnostic
+            .with_label(span, "undefined function called here")
+            .with_suggestion("declare the function with `fn` before calling it");
+    } else if let Some(name) = needle {
+        if let Some(span) = declarations.get(name) {
+            diagnostic = diagnostic.with_label(*span, "declared here");
+        }
+    }
+
+    if error.contains("boolean") {
+        diagnostic = diagnostic.with_suggestion("use `true` or `false`, or compare numeric values");
+    }
+
+    diagnostic
+}
+
+fn recover_parse_diagnostics(source: &str) -> Vec<Diagnostic> {
+    let mut diagnostics = Vec::new();
+    let mut offset = 0;
+    for line in source.lines() {
+        let trimmed = line.trim();
+        if !trimmed.is_empty() {
+            let candidate = if trimmed.ends_with(';') || trimmed.ends_with('}') {
+                format!("{trimmed}\n")
+            } else {
+                format!("{trimmed};\n")
+            };
+            if let Err(error) = parse_vex(&candidate) {
+                let column = line.find(trimmed).unwrap_or(0);
+                diagnostics.push(
+                    Diagnostic::new(
+                        "E1001",
+                        format!("parse error: {error}"),
+                        Span {
+                            start: offset + column,
+                            end: offset + column + trimmed.len().max(1),
+                        },
+                    )
+                    .with_label(
+                        Span {
+                            start: offset + column,
+                            end: offset + column + trimmed.len().max(1),
+                        },
+                        "could not parse this line",
+                    )
+                    .with_suggestion("check this statement before continuing"),
+                );
+            }
+        }
+        offset += line.len() + 1;
+    }
+    diagnostics
+}
+
 fn pipeline(source: &str) -> Result<Vec<ast::Stmt>, Diagnostic> {
-    let pairs = parse_vex(source).map_err(|error| {
-        let (line, column) = match error.line_col {
-            LineColLocation::Pos(position) => position,
-            LineColLocation::Span(start, _) => start,
-        };
-        let offset = source
-            .lines()
-            .take(line.saturating_sub(1))
-            .map(|l| l.len() + 1)
-            .sum::<usize>()
-            + column.saturating_sub(1);
-        Diagnostic::new(
-            "E1001",
-            format!("parse error: {error}"),
-            Span {
-                start: offset,
-                end: offset + 1,
-            },
-        )
-        .with_suggestion("check the preceding expression and add a semicolon if needed")
-    })?;
+    let pairs = parse_vex(source).map_err(|error| parse_error_diagnostic(source, error))?;
     let spanned_stmts = build_ast_with_spans(pairs).map_err(|error| {
         let message = error.to_string();
         let needle = message.split('`').nth(1);
@@ -76,33 +146,48 @@ fn pipeline(source: &str) -> Result<Vec<ast::Stmt>, Diagnostic> {
         .map(|spanned| spanned.stmt)
         .collect::<Vec<_>>();
     let mut analyzer = SemanticAnalyzer::new();
-    analyzer.analyze(&stmts).map_err(|error| {
-        let needle = error.split('`').nth(1);
-        let mut diagnostic = Diagnostic::new("E2001", error.clone(), span_for(source, needle));
-        if error.contains("undefined variable") {
-            let span = diagnostic.span;
-            diagnostic = diagnostic
-                .with_label(span, "undefined name referenced here")
-                .with_suggestion("declare the variable with `let` before using it");
-        } else if error.contains("undefined function") {
-            let span = diagnostic.span;
-            diagnostic = diagnostic
-                .with_label(span, "undefined function called here")
-                .with_suggestion("declare the function with `fn` before calling it");
-        } else if let Some(name) = needle {
-            if let Some(span) = declarations.get(name) {
-                diagnostic = diagnostic.with_label(*span, "declared here");
-            }
-        }
-
-        if error.contains("boolean") {
-            diagnostic =
-                diagnostic.with_suggestion("use `true` or `false`, or compare numeric values");
-        }
-
-        diagnostic
-    })?;
+    analyzer
+        .analyze(&stmts)
+        .map_err(|error| semantic_diagnostic(error, source, &declarations))?;
     Ok(stmts)
+}
+
+fn pipeline_all(source: &str) -> Result<Vec<ast::Stmt>, Vec<Diagnostic>> {
+    let pairs = match parse_vex(source) {
+        Ok(pairs) => pairs,
+        Err(error) => {
+            let recovered = recover_parse_diagnostics(source);
+            return Err(if recovered.len() > 1 {
+                recovered
+            } else {
+                vec![parse_error_diagnostic(source, error)]
+            });
+        }
+    };
+    let spanned_stmts = build_ast_with_spans(pairs).map_err(|error| {
+        let message = error.to_string();
+        let needle = message.split('`').nth(1);
+        vec![Diagnostic::new(
+            "E1002",
+            message.clone(),
+            span_for(source, needle),
+        )]
+    })?;
+    let declarations = declaration_spans(source, &spanned_stmts);
+    let stmts = spanned_stmts
+        .into_iter()
+        .map(|spanned| spanned.stmt)
+        .collect::<Vec<_>>();
+    let mut analyzer = SemanticAnalyzer::new();
+    let errors = analyzer.analyze_all(&stmts);
+    if errors.is_empty() {
+        Ok(stmts)
+    } else {
+        Err(errors
+            .into_iter()
+            .map(|error| semantic_diagnostic(error, source, &declarations))
+            .collect())
+    }
 }
 
 fn lower_source(source: &str) -> Result<(Vec<ast::Stmt>, ir::IrProgram), Diagnostic> {
@@ -190,122 +275,6 @@ fn report_diagnostics(errors: &[Diagnostic], source: &str, path: Option<&str>, j
             report_diagnostic(error, source, path, false);
         }
     }
-}
-
-fn identifier_spans(source: &str) -> Vec<(String, Span)> {
-    let bytes = source.as_bytes();
-    let mut out = Vec::new();
-    let mut i = 0;
-    while i < bytes.len() {
-        if bytes[i] == b'"' {
-            i += 1;
-            while i < bytes.len() && bytes[i] != b'"' {
-                i += 1;
-            }
-            i = (i + 1).min(bytes.len());
-            continue;
-        }
-        if bytes[i].is_ascii_alphabetic() || bytes[i] == b'_' {
-            let start = i;
-            i += 1;
-            while i < bytes.len() && (bytes[i].is_ascii_alphanumeric() || bytes[i] == b'_') {
-                i += 1;
-            }
-            out.push((source[start..i].to_string(), Span { start, end: i }));
-        } else {
-            i += 1;
-        }
-    }
-    out
-}
-
-fn recovered_undefined_name_diagnostics(source: &str) -> Vec<Diagnostic> {
-    #[derive(Clone, Copy)]
-    enum DeclarationKind {
-        Variable,
-        Function,
-        Type,
-    }
-
-    fn prev_non_ws(source: &str, index: usize) -> Option<u8> {
-        source.as_bytes()[..index]
-            .iter()
-            .rev()
-            .copied()
-            .find(|byte| !byte.is_ascii_whitespace())
-    }
-
-    fn next_non_ws(source: &str, index: usize) -> Option<u8> {
-        source.as_bytes()[index..]
-            .iter()
-            .copied()
-            .find(|byte| !byte.is_ascii_whitespace())
-    }
-
-    let identifiers = identifier_spans(source);
-    let keywords = [
-        "let", "fn", "record", "enum", "if", "else", "while", "break", "continue", "return",
-        "true", "false", "match", "Ok", "Err", "i32", "u64", "bool", "string", "unit", "Result",
-    ];
-    let builtins = ["map", "map_get", "ok", "err", "print", "println"];
-    let mut variables: HashMap<String, Span> = HashMap::new();
-    let mut functions: HashMap<String, Span> = HashMap::new();
-    let mut diagnostics = Vec::new();
-    let mut expect_declaration_name = None;
-
-    for (name, span) in identifiers {
-        if keywords.contains(&name.as_str()) {
-            expect_declaration_name = match name.as_str() {
-                "let" => Some(DeclarationKind::Variable),
-                "fn" => Some(DeclarationKind::Function),
-                "record" | "enum" => Some(DeclarationKind::Type),
-                _ => None,
-            };
-            continue;
-        }
-        if builtins.contains(&name.as_str()) {
-            expect_declaration_name = None;
-            continue;
-        }
-        if let Some(kind) = expect_declaration_name.take() {
-            match kind {
-                DeclarationKind::Variable => {
-                    variables.insert(name, span);
-                }
-                DeclarationKind::Function => {
-                    functions.insert(name, span);
-                }
-                DeclarationKind::Type => {}
-            }
-            continue;
-        }
-        if matches!(prev_non_ws(source, span.start), Some(b'.'))
-            || matches!(next_non_ws(source, span.end), Some(b':'))
-        {
-            continue;
-        }
-        let is_call = matches!(next_non_ws(source, span.end), Some(b'('));
-        if is_call {
-            if !functions.contains_key(&name) {
-                diagnostics.push(
-                    Diagnostic::new("E2001", format!("undefined function `{name}`"), span)
-                        .with_label(span, "undefined function called here")
-                        .with_suggestion("declare the function with `fn` before calling it"),
-                );
-            }
-            continue;
-        }
-        if variables.contains_key(&name) || functions.contains_key(&name) {
-            continue;
-        }
-        diagnostics.push(
-            Diagnostic::new("E2001", format!("undefined variable `{name}`"), span)
-                .with_label(span, "undefined name referenced here")
-                .with_suggestion("declare the variable with `let` before using it"),
-        );
-    }
-
-    diagnostics
 }
 
 fn repl() {
@@ -449,8 +418,14 @@ fn main() {
         }
     };
     match command {
-        "check" | "run" | "test" => match pipeline(&source) {
-            Ok(_stmts) if command == "check" => println!("ok"),
+        "check" => match pipeline_all(&source) {
+            Ok(_) => println!("ok"),
+            Err(errors) => {
+                report_diagnostics(&errors, &source, path, diagnostic_json);
+                std::process::exit(1);
+            }
+        },
+        "run" | "test" => match pipeline(&source) {
             Ok(stmts) if command == "test" => match evaluator::eval(&stmts) {
                 Ok(_) => println!("test passed"),
                 Err(error) => {
@@ -468,16 +443,6 @@ fn main() {
                 }
             },
             Err(error) => {
-                if command == "check"
-                    && (error.message.contains("undefined variable")
-                        || error.message.contains("undefined function"))
-                {
-                    let recovered = recovered_undefined_name_diagnostics(&source);
-                    if recovered.len() > 1 {
-                        report_diagnostics(&recovered, &source, path, diagnostic_json);
-                        std::process::exit(1);
-                    }
-                }
                 report_diagnostic(&error, &source, path, diagnostic_json);
                 std::process::exit(1);
             }

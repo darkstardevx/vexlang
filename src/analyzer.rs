@@ -25,19 +25,31 @@ impl SemanticAnalyzer {
         }
     }
     pub fn analyze(&mut self, stmts: &[Stmt]) -> Result<(), String> {
+        match self.analyze_all(stmts).into_iter().next() {
+            Some(error) => Err(error),
+            None => Ok(()),
+        }
+    }
+
+    pub fn analyze_all(&mut self, stmts: &[Stmt]) -> Vec<String> {
+        let mut errors = Vec::new();
         for s in stmts {
             if let Stmt::Enum { name, variants } = s {
                 if self.enums.contains_key(name) || self.records.contains_key(name) {
-                    return Err(format!("duplicate type `{name}`"));
+                    errors.push(format!("duplicate type `{name}`"));
+                    continue;
                 }
                 let mut seen = std::collections::HashSet::new();
                 let mut definitions = Vec::new();
                 for variant in variants {
                     if !seen.insert(&variant.name) {
-                        return Err(format!("duplicate enum variant `{}`", variant.name));
+                        errors.push(format!("duplicate enum variant `{}`", variant.name));
+                        continue;
                     }
                     for (_, ty) in &variant.fields {
-                        Self::check_supported(ty)?;
+                        if let Err(error) = Self::check_supported(ty) {
+                            errors.push(error);
+                        }
                     }
                     definitions.push((variant.name.clone(), variant.fields.clone()));
                 }
@@ -47,13 +59,16 @@ impl SemanticAnalyzer {
         for s in stmts {
             if let Stmt::Record { name, fields } = s {
                 if self.records.contains_key(name) {
-                    return Err(format!("duplicate record `{name}`"));
+                    errors.push(format!("duplicate record `{name}`"));
+                    continue;
                 }
                 let mut seen = std::collections::HashSet::new();
                 for (field, ty) in fields {
-                    self.check_type(ty)?;
+                    if let Err(error) = self.check_type(ty) {
+                        errors.push(error);
+                    }
                     if !seen.insert(field) {
-                        return Err(format!("duplicate field `{field}` in record `{name}`"));
+                        errors.push(format!("duplicate field `{field}` in record `{name}`"));
                     }
                 }
                 self.records.insert(name.clone(), fields.clone());
@@ -66,12 +81,17 @@ impl SemanticAnalyzer {
             } = s
             {
                 if self.functions.contains_key(name) {
-                    return Err(format!("duplicate function `{name}`"));
+                    errors.push(format!("duplicate function `{name}`"));
+                    continue;
                 }
                 for (_, t) in params {
-                    self.check_type(t)?;
+                    if let Err(error) = self.check_type(t) {
+                        errors.push(error);
+                    }
                 }
-                self.check_type(return_type)?;
+                if let Err(error) = self.check_type(return_type) {
+                    errors.push(error);
+                }
                 self.functions.insert(
                     name.clone(),
                     Function {
@@ -82,9 +102,9 @@ impl SemanticAnalyzer {
             }
         }
         let mut scope = self.symbols.clone();
-        self.check_stmts(stmts, &mut scope, 0, None)?;
+        errors.extend(self.check_stmts_all(stmts, &mut scope, 0, None));
         self.symbols = scope;
-        Ok(())
+        errors
     }
     fn check_supported(t: &Type) -> Result<(), String> {
         if matches!(
@@ -122,10 +142,30 @@ impl SemanticAnalyzer {
         loops: usize,
         ret: Option<&Type>,
     ) -> Result<(), String> {
-        for s in stmts {
-            self.check_stmt(s, scope, loops, ret)?;
+        match self
+            .check_stmts_all(stmts, scope, loops, ret)
+            .into_iter()
+            .next()
+        {
+            Some(error) => Err(error),
+            None => Ok(()),
         }
-        Ok(())
+    }
+
+    fn check_stmts_all(
+        &self,
+        stmts: &[Stmt],
+        scope: &mut HashMap<String, Type>,
+        loops: usize,
+        ret: Option<&Type>,
+    ) -> Vec<String> {
+        let mut errors = Vec::new();
+        for s in stmts {
+            if let Err(error) = self.check_stmt(s, scope, loops, ret) {
+                errors.push(error);
+            }
+        }
+        errors
     }
     fn check_stmt(
         &self,

@@ -51,15 +51,17 @@ artifacts are introduced.
 ## Milestone 12 — Production diagnostics
 
 - Retain source spans on every AST node. **Started:** AST construction now
-  preserves top-level statement spans and semantic diagnostics can attach
-  declaration-site labels; full expression-level spans remain in progress.
+  preserves top-level statement spans and expression spans from the parse tree;
+  semantic diagnostics can attach declaration-site labels. Full typed AST span
+  attachment remains in progress.
 - Add richer multi-span diagnostics and machine-readable output. **Initial
   machine-readable JSON diagnostics are available through `--json`; diagnostic
   labels are represented in text and JSON, while full AST-wide multi-span output
   remains in progress.**
 - Add error recovery for multiple diagnostics per invocation. **Started:**
-  `check` can now recover and report multiple undefined-variable and
-  undefined-function diagnostics.
+  `check` uses analyzer-native collection for multiple undefined-variable and
+  undefined-function diagnostics, plus conservative line-oriented parse
+  recovery.
 
 ## Milestone 13 — Native compilation
 
