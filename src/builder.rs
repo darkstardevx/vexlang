@@ -1,7 +1,7 @@
 use pest::Parser;
 use pest::iterators::{Pair, Pairs};
 
-use crate::ast::{EnumVariant, Expr, Op, Stmt, Type};
+use crate::ast::{EnumVariant, Expr, Op, Pattern, Stmt, Type};
 use crate::parser::{Rule, VexParser};
 
 #[derive(Debug, Clone, PartialEq)]
@@ -287,6 +287,13 @@ impl<'a> TextParser<'a> {
     fn parse(mut self) -> Result<Expr, BuildError> {
         let expr = self.binary(0)?;
         self.ws();
+        if self.peek() == Some(b'?') {
+            self.pos += 1;
+            self.ws();
+            if self.pos == self.input.len() {
+                return Ok(Expr::Try(Box::new(expr)));
+            }
+        }
         if self.pos != self.input.len() {
             return Err(BuildError("unexpected token in expression".into()));
         }
@@ -599,6 +606,17 @@ fn build_expr(pair: Pair<Rule>) -> Result<Expr, BuildError> {
     match pair.as_rule() {
         Rule::expr | Rule::term | Rule::atom | Rule::paren => {
             let text = pair.as_str().trim();
+            if text.starts_with("match ") {
+                let parsed = VexParser::parse(Rule::match_expr, text)
+                    .map_err(|error| BuildError(format!("invalid match expression: {error}")))?;
+                let expr = parsed
+                    .into_iter()
+                    .find(|p| p.as_rule() == Rule::match_expr)
+                    .ok_or_else(|| {
+                        BuildError("match expression parse produced no expression".into())
+                    })?;
+                return build_expr(expr);
+            }
             if text.starts_with("if ") {
                 let parsed = VexParser::parse(Rule::if_expr, text)
                     .map_err(|error| BuildError(format!("invalid if expression: {error}")))?;
@@ -645,6 +663,34 @@ fn build_expr(pair: Pair<Rule>) -> Result<Expr, BuildError> {
                 else_branch,
             })
         }
+        Rule::match_expr => {
+            let mut parts = pair.into_inner();
+            let value = build_expr(
+                parts
+                    .next()
+                    .ok_or_else(|| BuildError("match is missing a value".into()))?,
+            )?;
+            let mut arms = Vec::new();
+            for arm in parts {
+                let mut items = arm.into_inner();
+                let pattern = parse_pattern(
+                    items
+                        .next()
+                        .ok_or_else(|| BuildError("match arm is missing a pattern".into()))?
+                        .as_str(),
+                )?;
+                let body = build_expr(
+                    items
+                        .next()
+                        .ok_or_else(|| BuildError("match arm is missing a body".into()))?,
+                )?;
+                arms.push((pattern, body));
+            }
+            Ok(Expr::Match {
+                value: Box::new(value),
+                arms,
+            })
+        }
         Rule::int => pair.as_str().parse::<i64>().map(Expr::Int).map_err(|_| {
             BuildError(format!(
                 "integer literal `{}` is out of range",
@@ -657,10 +703,55 @@ fn build_expr(pair: Pair<Rule>) -> Result<Expr, BuildError> {
                 raw.replace("\\\"", "\"").replace("\\\\", "\\"),
             ))
         }
+
         Rule::array => TextParser::new(pair.as_str()).parse(),
         Rule::ident if pair.as_str() == "true" => Ok(Expr::Bool(true)),
         Rule::ident if pair.as_str() == "false" => Ok(Expr::Bool(false)),
         Rule::ident => Ok(Expr::Var(pair.as_str().to_string())),
         other => Err(BuildError(format!("expected expression, got `{other:?}`"))),
     }
+}
+
+fn parse_pattern(text: &str) -> Result<Pattern, BuildError> {
+    let text = text.trim();
+    if text == "_" {
+        return Ok(Pattern::Wildcard);
+    }
+    if let Some(rest) = text.strip_prefix("Ok(").and_then(|x| x.strip_suffix(')')) {
+        return Ok(Pattern::Result {
+            ok: true,
+            binding: Some(rest.trim().to_string()),
+        });
+    }
+    if let Some(rest) = text.strip_prefix("Err(").and_then(|x| x.strip_suffix(')')) {
+        return Ok(Pattern::Result {
+            ok: false,
+            binding: Some(rest.trim().to_string()),
+        });
+    }
+    let (head, fields) = if let Some((head, fields)) = text.split_once('{') {
+        (
+            head.trim(),
+            fields
+                .trim_end_matches('}')
+                .split(',')
+                .filter(|x| !x.trim().is_empty())
+                .map(|x| x.trim().to_string())
+                .collect(),
+        )
+    } else {
+        (text, Vec::new())
+    };
+    let (enum_name, variant) = head
+        .split_once("::")
+        .map(|(e, v)| (Some(e.to_string()), v.to_string()))
+        .unwrap_or((None, head.to_string()));
+    if variant.is_empty() {
+        return Err(BuildError("invalid match pattern".into()));
+    }
+    Ok(Pattern::Enum {
+        enum_name,
+        variant,
+        bindings: fields,
+    })
 }

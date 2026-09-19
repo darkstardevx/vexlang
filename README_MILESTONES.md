@@ -30,6 +30,12 @@ features.
 Collections/indexing, structured error/result values, modules/imports, and
 project configuration remain explicitly deferred.
 
+The next implementation sequence is tracked as Phases 15–20: pattern matching
+and Result propagation, a stateful REPL, local modules/projects, mutable maps
+and iteration, type aliases/tuples/generic foundations, and compiler-readiness
+validation. Native code generation remains explicitly out of scope until a
+verified backend exists.
+
 ## Milestone 12 — Production diagnostics
 
 - Retain source spans on every AST node.

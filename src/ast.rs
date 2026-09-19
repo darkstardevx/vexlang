@@ -55,10 +55,29 @@ pub enum Expr {
     Field(Box<Expr>, String),
     Array(Vec<Expr>),
     Index(Box<Expr>, Box<Expr>),
+    Try(Box<Expr>),
+    Match {
+        value: Box<Expr>,
+        arms: Vec<(Pattern, Expr)>,
+    },
     EnumVariant {
         enum_name: String,
         variant: String,
         fields: Vec<(String, Expr)>,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum Pattern {
+    Wildcard,
+    Enum {
+        enum_name: Option<String>,
+        variant: String,
+        bindings: Vec<String>,
+    },
+    Result {
+        ok: bool,
+        binding: Option<String>,
     },
 }
 

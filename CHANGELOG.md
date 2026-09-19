@@ -9,6 +9,12 @@
 
 ## Unreleased (alpha)
 
+- Added enum/Result `match` expressions, wildcard and binding patterns,
+  exhaustiveness diagnostics, and interpreter Result propagation with `?`.
+  Match/propagation textual-IR lowering is deferred until sum-value control
+  flow is represented in the IR.
+- The REPL now preserves successful bindings/functions, supports multiline
+  input and inspection/loading commands, and rolls back failed snippets.
 - Added typed array collections: `[1, 2, 3]`, `[i32]` annotations, empty and
   nested arrays, zero-based indexing, indexed mutation, bounds/type diagnostics,
   and textual IR lowering. Maps and generics remain deferred.

@@ -111,10 +111,12 @@ fn usage() -> &'static str {
 }
 
 fn repl() {
-    println!("Vexlang REPL (enter `:quit` to exit)");
+    println!("Vexlang REPL (enter `:help` for commands)");
     let stdin = io::stdin();
     let mut input = stdin.lock();
     let mut line = String::new();
+    let mut source = String::new();
+    let mut pending = String::new();
     loop {
         print!("vex> ");
         let _ = io::stdout().flush();
@@ -122,15 +124,57 @@ fn repl() {
         if input.read_line(&mut line).unwrap_or(0) == 0 {
             break;
         }
-        if line.trim() == ":quit" || line.trim() == ":q" {
-            break;
-        }
-        if line.trim().is_empty() {
+        let command = line.trim();
+        if pending.is_empty() && command.starts_with(':') {
+            let mut parts = command.split_whitespace();
+            match parts.next().unwrap_or_default() {
+                ":quit" | ":q" => break,
+                ":help" => println!(":help :reset :type EXPR :ir :load FILE :quit"),
+                ":reset" => {
+                    source.clear();
+                    println!("reset");
+                }
+                ":type" => match pipeline(&format!("{};", parts.collect::<Vec<_>>().join(" "))) {
+                    Ok(stmts) => println!("{:?}", stmts.last()),
+                    Err(error) => eprintln!("{}", error.render(&source, "<repl>")),
+                },
+                ":ir" => match lower_source(&source) {
+                    Ok((_, program)) => print!("{}", ir::render(&program)),
+                    Err(error) => eprintln!("{}", error.render(&source, "<repl>")),
+                },
+                ":load" => {
+                    if let Some(path) = parts.next() {
+                        match fs::read_to_string(path) {
+                            Ok(contents) => {
+                                source.push_str(&contents);
+                                source.push('\n');
+                            }
+                            Err(error) => eprintln!("could not load `{path}`: {error}"),
+                        }
+                    } else {
+                        eprintln!("usage: :load FILE");
+                    }
+                }
+                _ => eprintln!("unknown command; enter :help"),
+            }
             continue;
         }
-        match run(&line) {
+        if command.is_empty() && pending.is_empty() {
+            continue;
+        }
+        pending.push_str(&line);
+        if pending.matches('{').count() != pending.matches('}').count() {
+            continue;
+        }
+        let previous = source.len();
+        source.push_str(&pending);
+        pending.clear();
+        match run(&source) {
             Ok(value) => println!("{value:?}"),
-            Err(error) => eprintln!("{}", error.render(&line, "<repl>")),
+            Err(error) => {
+                eprintln!("{}", error.render(&source, "<repl>"));
+                source.truncate(previous);
+            }
         }
     }
 }
@@ -518,6 +562,34 @@ mod tests {
         assert_eq!(
             run(r#"let values = map("answer", 42); map_get(values, "answer");"#),
             Ok(Value::Int(42))
+        );
+    }
+
+    #[test]
+    fn matches_results_and_checks_exhaustiveness() {
+        assert_eq!(
+            run(r#"let value = ok(7); match value { Ok(number) => number, Err(error) => 0 };"#),
+            Ok(Value::Int(7))
+        );
+        assert!(
+            run(r#"let value = ok(7); match value { Ok(number) => number };"#)
+                .unwrap_err()
+                .contains("non-exhaustive")
+        );
+    }
+
+    #[test]
+    fn propagates_result_errors_with_question_mark() {
+        assert_eq!(
+            run(r#"fn unwrap() -> Result { ok(4)? } unwrap();"#),
+            Ok(Value::Int(4))
+        );
+        assert_eq!(
+            run(r#"fn unwrap() -> Result { err("bad")? } unwrap();"#),
+            Ok(Value::Result {
+                ok: false,
+                value: Box::new(Value::String("bad".into())),
+            })
         );
     }
 }

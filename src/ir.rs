@@ -440,6 +440,11 @@ fn lower_expr(expr: &Expr, functions: &Functions, scope: &mut Scope) -> Result<I
             };
             (ty, IrExprKind::Call(name.clone(), args))
         }
+        Expr::Try(_) | Expr::Match { .. } => {
+            return Err(LowerError::Unsupported(
+                "IR lowering for Result propagation and match expressions is deferred".into(),
+            ));
+        }
     };
     Ok(IrExpr { ty, kind })
 }

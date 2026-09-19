@@ -1,4 +1,4 @@
-use crate::ast::{Expr, Op, Stmt, Type};
+use crate::ast::{Expr, Op, Pattern, Stmt, Type};
 use std::collections::HashMap;
 
 #[derive(Clone)]
@@ -106,7 +106,10 @@ impl SemanticAnalyzer {
     fn check_type(&self, t: &Type) -> Result<(), String> {
         Self::check_supported(t)?;
         if let Type::Custom(name) = t {
-            if !self.records.contains_key(name) && !self.enums.contains_key(name) {
+            if name != "Result"
+                && !self.records.contains_key(name)
+                && !self.enums.contains_key(name)
+            {
                 return Err(format!("undefined type `{name}`"));
             }
         }
@@ -353,6 +356,94 @@ impl SemanticAnalyzer {
                     Type::Array(element) => Ok(*element),
                     other => Err(format!("indexing requires an array, got {other:?}")),
                 }
+            }
+            Expr::Try(value) => {
+                let ty = self.check_expr(value, scope, loops, ret)?;
+                if ty != Type::Custom("Result".into()) {
+                    return Err("`?` requires a Result value".into());
+                }
+                Ok(Type::Inferred)
+            }
+            Expr::Match { value, arms } => {
+                let value_ty = self.check_expr(value, scope, loops, ret)?;
+                if arms.is_empty() {
+                    return Err("match requires at least one arm".into());
+                }
+                let mut result = Type::Inferred;
+                let mut wildcard = false;
+                let mut covered = std::collections::HashSet::new();
+                for (pattern, body) in arms {
+                    let mut arm_scope = scope.clone();
+                    match pattern {
+                        Pattern::Wildcard => wildcard = true,
+                        Pattern::Result { ok, binding } => {
+                            if value_ty != Type::Custom("Result".into()) {
+                                return Err("Result patterns require a Result value".into());
+                            }
+                            covered.insert(if *ok { "Ok" } else { "Err" }.to_string());
+                            if let Some(name) = binding {
+                                arm_scope.insert(name.clone(), Type::Inferred);
+                            }
+                        }
+                        Pattern::Enum {
+                            enum_name,
+                            variant,
+                            bindings,
+                        } => {
+                            let Some(name) = enum_name else {
+                                return Err("enum match patterns require `Type::Variant`".into());
+                            };
+                            if value_ty != Type::Custom(name.clone()) {
+                                return Err(format!(
+                                    "pattern `{name}::{variant}` does not match {value_ty:?}"
+                                ));
+                            }
+                            let variants = self
+                                .enums
+                                .get(name)
+                                .ok_or_else(|| format!("undefined enum `{name}`"))?;
+                            let (_, fields) =
+                                variants.iter().find(|(v, _)| v == variant).ok_or_else(|| {
+                                    format!("unknown variant `{variant}` on enum `{name}`")
+                                })?;
+                            if bindings.len() > fields.len() {
+                                return Err(format!("too many bindings in `{name}::{variant}`"));
+                            }
+                            covered.insert(variant.clone());
+                            for binding in bindings {
+                                arm_scope.insert(binding.clone(), Type::Inferred);
+                            }
+                        }
+                    }
+                    let ty = self.check_expr(body, &mut arm_scope, loops, ret)?;
+                    if result == Type::Inferred {
+                        result = ty;
+                    } else if !Self::compatible(&result, &ty) {
+                        return Err("match arms must have compatible types".into());
+                    }
+                }
+                if !wildcard {
+                    match value_ty {
+                        Type::Custom(ref name) if name == "Result" => {
+                            if !covered.contains("Ok") || !covered.contains("Err") {
+                                return Err(
+                                    "non-exhaustive match: expected Ok and Err arms or `_`".into(),
+                                );
+                            }
+                        }
+                        Type::Custom(ref name) => {
+                            let variants = self
+                                .enums
+                                .get(name)
+                                .ok_or_else(|| format!("undefined enum `{name}`"))?;
+                            if variants.iter().any(|(v, _)| !covered.contains(v)) {
+                                return Err(format!("non-exhaustive match on enum `{name}`"));
+                            }
+                        }
+                        _ => return Err("match requires an enum or Result value".into()),
+                    }
+                }
+                Ok(result)
             }
             Expr::Var(n) => scope
                 .get(n)

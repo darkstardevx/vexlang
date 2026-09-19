@@ -66,6 +66,21 @@ The repository is public-ready for the labeled alpha scope. It is not yet a
 production compiler release: native code generation, maps, generics, modules,
 and project/package management remain future work.
 
+## Phase 15 — Pattern matching and Result propagation
+
+- Added enum and `Result` match expressions with wildcard and binding patterns.
+- Added semantic exhaustiveness checks and typed pattern scopes.
+- Added interpreter Result propagation with `?`.
+- Textual IR lowering for these expressions remains deferred until the IR has
+  first-class sum-value control flow.
+
+## Phase 16 — Stateful REPL
+
+- REPL bindings and function declarations persist across successful inputs.
+- Added multiline brace-aware input and `:help`, `:reset`, `:type`, `:ir`,
+  `:load`, and `:quit` commands.
+- Failed snippets are rolled back so a typo does not poison the session.
+
 ## Phase 9 — Typed collections and indexing
 
 - Added typed array literals, including empty and nested arrays.

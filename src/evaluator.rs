@@ -1,4 +1,4 @@
-use crate::ast::{Expr, Op, Stmt, Type, Value};
+use crate::ast::{Expr, Op, Pattern, Stmt, Type, Value};
 use std::collections::{BTreeMap, HashMap};
 const LOOP_ITERATION_LIMIT: usize = 1_000_000;
 const CALL_DEPTH_LIMIT: usize = 256;
@@ -188,6 +188,56 @@ fn eval_expr(x: &Expr, e: &mut Env, f: &Functions, d: usize) -> Result<Control, 
                 }
                 _ => Err(EvalError::TypeError("indexing requires an array".into())),
             }
+        }
+        Expr::Try(value) => match value_of(eval_expr(value, e, f, d)?)? {
+            Value::Result { ok: true, value } => Ok(Control::Value(*value)),
+            err @ Value::Result { ok: false, .. } => Ok(Control::Return(err)),
+            _ => Err(EvalError::TypeError("`?` requires a Result value".into())),
+        },
+        Expr::Match { value, arms } => {
+            let matched = value_of(eval_expr(value, e, f, d)?)?;
+            for (pattern, body) in arms {
+                let mut local = e.clone();
+                let is_match = match (pattern, &matched) {
+                    (Pattern::Wildcard, _) => true,
+                    (Pattern::Result { ok, binding }, Value::Result { ok: actual, value })
+                        if ok == actual =>
+                    {
+                        if let Some(name) = binding {
+                            local.insert(name.clone(), (**value).clone());
+                        }
+                        true
+                    }
+                    (
+                        Pattern::Enum {
+                            enum_name,
+                            variant,
+                            bindings,
+                        },
+                        Value::Enum {
+                            enum_name: actual_name,
+                            variant: actual_variant,
+                            fields,
+                        },
+                    ) if enum_name.as_ref().is_none_or(|name| name == actual_name)
+                        && variant == actual_variant =>
+                    {
+                        for binding in bindings {
+                            if let Some(field_value) = fields.get(binding) {
+                                local.insert(binding.clone(), field_value.clone());
+                            }
+                        }
+                        true
+                    }
+                    _ => false,
+                };
+                if is_match {
+                    let result = eval_expr(body, &mut local, f, d)?;
+                    merge(e, local, e.keys().cloned().collect());
+                    return Ok(result);
+                }
+            }
+            Err(EvalError::RuntimeError("non-exhaustive match".into()))
         }
         Expr::Record(name, fields) => {
             let mut values = BTreeMap::new();
