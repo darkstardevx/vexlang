@@ -39,6 +39,9 @@ verified backend exists.
 Phase 17 is currently a documented boundary: local module/import resolution
 and project entrypoint behavior are not yet implemented.
 
+The type-system phase explicitly defers aliases, tuples, generic foundations,
+and broad conversion changes until they can use one shared representation.
+
 ## Milestone 12 — Production diagnostics
 
 - Retain source spans on every AST node.
