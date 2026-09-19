@@ -42,6 +42,10 @@ and project entrypoint behavior are not yet implemented.
 The type-system phase explicitly defers aliases, tuples, generic foundations,
 and broad conversion changes until they can use one shared representation.
 
+Compiler readiness remains validation-only for now: native code generation is
+not claimed, fake native artifacts are prohibited, and spans/diagnostics/IR
+validation must be expanded before a backend is introduced.
+
 ## Milestone 12 — Production diagnostics
 
 - Retain source spans on every AST node.
