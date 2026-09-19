@@ -58,8 +58,9 @@ produce structured diagnostics with stable `E100x`/`E200x`/`E300x` codes,
 source locations, underlines, targeted help, and initial machine-readable JSON
 output via `--json`. AST construction now retains top-level statement spans as
 the first per-node span foundation. Full expression/declaration AST span
-retention and multi-span diagnostic recovery remain follow-up refinements;
-diagnostics currently retain the relevant source span at the pipeline boundary.
+retention remain follow-up refinements. Conservative multi-error recovery has
+started for undefined-variable diagnostics in `check`; broader recovery remains
+future work.
 
 ## Milestone 7 — Tooling
 

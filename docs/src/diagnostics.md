@@ -48,9 +48,13 @@ vexlang --json check program.vex
 
 The object includes `severity`, `code`, `message`, `file`, byte `span`,
 one-based line/column positions, a `labels` array for secondary source ranges,
-and an optional `suggestion` field. This is the first machine-readable
-diagnostics format; multi-diagnostic recovery and per-node AST spans remain
-planned production-diagnostics work.
+and an optional `suggestion` field. When `check` can recover multiple semantic
+errors, JSON output is an array of diagnostic objects.
+
+Current recovery is intentionally conservative: undefined-variable checks can
+report multiple missing names in one invocation. Broader multi-diagnostic
+recovery and full expression/declaration AST spans remain planned
+production-diagnostics work.
 
 Diagnostics currently retain a relevant source span at the pipeline boundary.
 Per-node span storage in every AST value is planned refinement work; the

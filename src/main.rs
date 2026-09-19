@@ -138,6 +138,86 @@ fn report_diagnostic(error: &Diagnostic, source: &str, path: Option<&str>, json:
     eprintln!("{}", render_diagnostic(error, source, path, json));
 }
 
+fn report_diagnostics(errors: &[Diagnostic], source: &str, path: Option<&str>, json: bool) {
+    if json {
+        let rendered = errors
+            .iter()
+            .map(|error| render_diagnostic(error, source, path, true))
+            .collect::<Vec<_>>()
+            .join(",");
+        eprintln!("[{rendered}]");
+    } else {
+        for (index, error) in errors.iter().enumerate() {
+            if index > 0 {
+                eprintln!();
+            }
+            report_diagnostic(error, source, path, false);
+        }
+    }
+}
+
+fn identifier_spans(source: &str) -> Vec<(String, Span)> {
+    let bytes = source.as_bytes();
+    let mut out = Vec::new();
+    let mut i = 0;
+    while i < bytes.len() {
+        if bytes[i] == b'"' {
+            i += 1;
+            while i < bytes.len() && bytes[i] != b'"' {
+                i += 1;
+            }
+            i = (i + 1).min(bytes.len());
+            continue;
+        }
+        if bytes[i].is_ascii_alphabetic() || bytes[i] == b'_' {
+            let start = i;
+            i += 1;
+            while i < bytes.len() && (bytes[i].is_ascii_alphanumeric() || bytes[i] == b'_') {
+                i += 1;
+            }
+            out.push((source[start..i].to_string(), Span { start, end: i }));
+        } else {
+            i += 1;
+        }
+    }
+    out
+}
+
+fn recovered_undefined_variable_diagnostics(source: &str) -> Vec<Diagnostic> {
+    let identifiers = identifier_spans(source);
+    let keywords = [
+        "let", "fn", "record", "enum", "if", "else", "while", "break", "continue", "return",
+        "true", "false", "match", "Ok", "Err", "i32", "u64", "bool", "string", "unit", "Result",
+        "map", "map_get", "ok", "err", "print", "println",
+    ];
+    let mut declared: std::collections::HashMap<String, Span> = std::collections::HashMap::new();
+    let mut diagnostics = Vec::new();
+    let mut expect_declaration_name = false;
+
+    for (name, span) in identifiers {
+        if keywords.contains(&name.as_str()) {
+            expect_declaration_name = matches!(name.as_str(), "let" | "fn" | "record" | "enum");
+            continue;
+        }
+        if expect_declaration_name {
+            declared.insert(name, span);
+            expect_declaration_name = false;
+            continue;
+        }
+        expect_declaration_name = false;
+        if declared.contains_key(&name) {
+            continue;
+        }
+        diagnostics.push(
+            Diagnostic::new("E2001", format!("undefined variable `{name}`"), span)
+                .with_label(span, "undefined name referenced here")
+                .with_suggestion("declare the variable with `let` before using it"),
+        );
+    }
+
+    diagnostics
+}
+
 fn repl() {
     println!("Vexlang REPL (enter `:help` for commands)");
     let stdin = io::stdin();
@@ -298,6 +378,13 @@ fn main() {
                 }
             },
             Err(error) => {
+                if command == "check" && error.message.contains("undefined variable") {
+                    let recovered = recovered_undefined_variable_diagnostics(&source);
+                    if recovered.len() > 1 {
+                        report_diagnostics(&recovered, &source, path, diagnostic_json);
+                        std::process::exit(1);
+                    }
+                }
                 report_diagnostic(&error, &source, path, diagnostic_json);
                 std::process::exit(1);
             }

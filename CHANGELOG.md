@@ -22,6 +22,8 @@
   diagnostics for CLI tooling, with label support for secondary source ranges.
 - Started AST span retention by preserving top-level statement spans during AST
   construction.
+- Added conservative multi-error recovery for undefined-variable diagnostics in
+  `check`, including JSON-array output when multiple diagnostics are emitted.
 
 ## 0.1.0-alpha.1
 

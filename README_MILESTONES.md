@@ -57,7 +57,8 @@ artifacts are introduced.
   machine-readable JSON diagnostics are available through `--json`; diagnostic
   labels are represented in text and JSON, while full AST-wide multi-span output
   remains in progress.**
-- Add error recovery for multiple diagnostics per invocation.
+- Add error recovery for multiple diagnostics per invocation. **Started:**
+  `check` can now recover and report multiple undefined-variable diagnostics.
 
 ## Milestone 13 — Native compilation
 

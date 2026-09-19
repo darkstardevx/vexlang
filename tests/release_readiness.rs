@@ -93,6 +93,22 @@ fn diagnostic_fixture_is_stable() {
 }
 
 #[test]
+fn check_reports_multiple_undefined_variables() {
+    let output = vex("missing_one;\nmissing_two;\n", "check");
+    assert!(!output.status.success());
+    let diagnostic = String::from_utf8_lossy(&output.stderr);
+    assert!(diagnostic.contains("undefined variable `missing_one`"));
+    assert!(diagnostic.contains("undefined variable `missing_two`"));
+
+    let output = vex_args("missing_one;\nmissing_two;\n", &["--json", "check", "-"]);
+    assert!(!output.status.success());
+    let diagnostic = String::from_utf8_lossy(&output.stderr);
+    assert!(diagnostic.trim_start().starts_with('['));
+    assert!(diagnostic.contains("undefined variable `missing_one`"));
+    assert!(diagnostic.contains("undefined variable `missing_two`"));
+}
+
+#[test]
 fn json_diagnostic_fixture_is_stable() {
     let output = vex_args("let value = missing;\n", &["--json", "check", "-"]);
     assert!(!output.status.success());
