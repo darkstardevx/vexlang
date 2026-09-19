@@ -95,3 +95,10 @@ and project/package management remain future work.
   / `:q` exit commands.
 - The REPL intentionally evaluates each line independently; persistent
   bindings and multiline editing remain deferred.
+
+## Phase 13 — Project configuration foundations
+
+- Added a dependency-free `vex.toml` project metadata reader and `project`
+  CLI command.
+- Module resolution, imports, manifests beyond the `[project]` section, and
+  dependency management remain deferred.

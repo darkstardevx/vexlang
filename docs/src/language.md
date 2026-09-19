@@ -127,3 +127,17 @@ other declared functions. Active call depth is limited to 256. Built-ins
 The interpreter evaluates top-level statements in order and prints the final
 value for `run`. `check` performs parsing and semantic analysis without
 evaluation.
+
+## Projects
+
+Project roots may contain a small `vex.toml` foundation:
+
+```toml
+[project]
+name = "sample"
+version = "0.1.0"
+source = "src/main.vex"
+```
+
+Use `vexlang project vex.toml` to validate and summarize it. Module/import
+resolution and dependency management are reserved for a later phase.

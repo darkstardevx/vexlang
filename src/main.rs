@@ -5,6 +5,7 @@ mod diagnostics;
 mod evaluator;
 mod ir;
 mod parser;
+mod project;
 
 use std::fs;
 use std::io::{self, BufRead, Read, Write};
@@ -106,7 +107,7 @@ fn read_source(path: Option<&str>) -> Result<String, String> {
 }
 
 fn usage() -> &'static str {
-    "usage: vexlang [check|run|repl|fmt|test|build|ir] [FILE|-]\n       vexlang FILE   (backwards-compatible alias for run)\n       vexlang --version"
+    "usage: vexlang [check|run|repl|project|fmt|test|build|ir] [FILE|-]\n       vexlang FILE   (backwards-compatible alias for run)\n       vexlang --version"
 }
 
 fn repl() {
@@ -145,7 +146,7 @@ fn main() {
         [one]
             if !matches!(
                 one.as_str(),
-                "check" | "run" | "repl" | "fmt" | "test" | "build" | "ir"
+                "check" | "run" | "repl" | "project" | "fmt" | "test" | "build" | "ir"
             ) =>
         {
             ("run", Some(one.as_str()))
@@ -154,7 +155,7 @@ fn main() {
         [command, path]
             if matches!(
                 command.as_str(),
-                "check" | "run" | "fmt" | "test" | "build" | "ir"
+                "check" | "run" | "project" | "fmt" | "test" | "build" | "ir"
             ) =>
         {
             (command.as_str(), Some(path.as_str()))
@@ -166,6 +167,16 @@ fn main() {
     };
     if command == "repl" {
         repl();
+        return;
+    }
+    if command == "project" {
+        match project::load(std::path::Path::new(path.unwrap_or("vex.toml"))) {
+            Ok(config) => println!("{} {} ({})", config.name, config.version, config.source),
+            Err(error) => {
+                eprintln!("error: {error}");
+                std::process::exit(1);
+            }
+        }
         return;
     }
     let source = match read_source(path) {
