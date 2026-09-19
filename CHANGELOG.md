@@ -19,7 +19,7 @@
 - Added reusable QBE install/smoke scripts, QBE backend documentation, and
   `u64` target design notes.
 - Added `--json` / `--diagnostic-format=json` machine-readable source
-  diagnostics for CLI tooling.
+  diagnostics for CLI tooling, with label support for secondary source ranges.
 
 ## 0.1.0-alpha.1
 

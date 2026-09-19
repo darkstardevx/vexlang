@@ -85,6 +85,8 @@ fn diagnostic_fixture_is_stable() {
         r#"-:1:13: error[E2001]: undefined variable `missing`
    1 | let value = missing;
      |             ^^^^^^^
+   1 | let value = missing;
+     |             ------- undefined name referenced here
      = help: declare the variable with `let` before using it
 "#
     );
@@ -100,6 +102,8 @@ fn json_diagnostic_fixture_is_stable() {
     assert!(diagnostic.contains("\"message\":\"undefined variable `missing`\""));
     assert!(diagnostic.contains("\"line\":1"));
     assert!(diagnostic.contains("\"column\":13"));
+    assert!(diagnostic.contains("\"labels\":[{"));
+    assert!(diagnostic.contains("undefined name referenced here"));
     assert!(
         diagnostic.contains("\"suggestion\":\"declare the variable with `let` before using it\"")
     );

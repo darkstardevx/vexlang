@@ -47,9 +47,10 @@ vexlang --json check program.vex
 ```
 
 The object includes `severity`, `code`, `message`, `file`, byte `span`,
-one-based line/column positions, and an optional `suggestion` field. This is the
-first machine-readable diagnostics format; multi-diagnostic recovery and
-per-node AST spans remain planned production-diagnostics work.
+one-based line/column positions, a `labels` array for secondary source ranges,
+and an optional `suggestion` field. This is the first machine-readable
+diagnostics format; multi-diagnostic recovery and per-node AST spans remain
+planned production-diagnostics work.
 
 Diagnostics currently retain a relevant source span at the pipeline boundary.
 Per-node span storage in every AST value is planned refinement work; the

@@ -52,8 +52,9 @@ artifacts are introduced.
 
 - Retain source spans on every AST node.
 - Add richer multi-span diagnostics and machine-readable output. **Initial
-  machine-readable JSON diagnostics are available through `--json`; multi-span
-  output remains deferred.**
+  machine-readable JSON diagnostics are available through `--json`; diagnostic
+  labels are represented in text and JSON, while full AST-wide multi-span output
+  remains in progress.**
 - Add error recovery for multiple diagnostics per invocation.
 
 ## Milestone 13 — Native compilation

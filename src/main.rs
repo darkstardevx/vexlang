@@ -51,8 +51,10 @@ fn pipeline(source: &str) -> Result<Vec<ast::Stmt>, Diagnostic> {
         let needle = error.split('`').nth(1);
         let mut diagnostic = Diagnostic::new("E2001", error.clone(), span_for(source, needle));
         if error.contains("undefined variable") {
-            diagnostic =
-                diagnostic.with_suggestion("declare the variable with `let` before using it");
+            let span = diagnostic.span;
+            diagnostic = diagnostic
+                .with_label(span, "undefined name referenced here")
+                .with_suggestion("declare the variable with `let` before using it");
         } else if error.contains("boolean") {
             diagnostic =
                 diagnostic.with_suggestion("use `true` or `false`, or compare numeric values");
