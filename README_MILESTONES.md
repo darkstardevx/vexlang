@@ -36,6 +36,9 @@ and iteration, type aliases/tuples/generic foundations, and compiler-readiness
 validation. Native code generation remains explicitly out of scope until a
 verified backend exists.
 
+Phase 17 is currently a documented boundary: local module/import resolution
+and project entrypoint behavior are not yet implemented.
+
 ## Milestone 12 — Production diagnostics
 
 - Retain source spans on every AST node.
