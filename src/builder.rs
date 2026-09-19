@@ -2,10 +2,17 @@ use pest::Parser;
 use pest::iterators::{Pair, Pairs};
 
 use crate::ast::{EnumVariant, Expr, Op, Pattern, Stmt, Type};
+use crate::diagnostics::Span;
 use crate::parser::{Rule, VexParser};
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct BuildError(pub String);
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct SpannedStmt {
+    pub stmt: Stmt,
+    pub span: Span,
+}
 
 impl std::fmt::Display for BuildError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -15,7 +22,15 @@ impl std::fmt::Display for BuildError {
 
 impl std::error::Error for BuildError {}
 
+#[allow(dead_code)]
 pub fn build_ast(pairs: Pairs<Rule>) -> Result<Vec<Stmt>, BuildError> {
+    Ok(build_ast_with_spans(pairs)?
+        .into_iter()
+        .map(|spanned| spanned.stmt)
+        .collect())
+}
+
+pub fn build_ast_with_spans(pairs: Pairs<Rule>) -> Result<Vec<SpannedStmt>, BuildError> {
     let program = pairs
         .into_iter()
         .find(|pair| pair.as_rule() == Rule::program)
@@ -23,7 +38,17 @@ pub fn build_ast(pairs: Pairs<Rule>) -> Result<Vec<Stmt>, BuildError> {
     program
         .into_inner()
         .filter(|pair| pair.as_rule() == Rule::stmt)
-        .map(build_stmt)
+        .map(|pair| {
+            let span = pair.as_span();
+            let stmt = build_stmt(pair)?;
+            Ok(SpannedStmt {
+                stmt,
+                span: Span {
+                    start: span.start(),
+                    end: span.end(),
+                },
+            })
+        })
         .collect()
 }
 
@@ -754,4 +779,26 @@ fn parse_pattern(text: &str) -> Result<Pattern, BuildError> {
         variant,
         bindings: fields,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::build_ast_with_spans;
+    use crate::parser::parse_vex;
+
+    #[test]
+    fn retains_top_level_statement_spans() {
+        let source = "let x = 1;\nlet y = x + 2;\ny;";
+        let spanned = build_ast_with_spans(parse_vex(source).unwrap()).unwrap();
+        assert_eq!(spanned.len(), 3);
+        assert_eq!(
+            &source[spanned[0].span.start..spanned[0].span.end],
+            "let x = 1;"
+        );
+        assert_eq!(
+            &source[spanned[1].span.start..spanned[1].span.end],
+            "let y = x + 2;"
+        );
+        assert_eq!(&source[spanned[2].span.start..spanned[2].span.end], "y;");
+    }
 }

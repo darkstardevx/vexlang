@@ -50,7 +50,9 @@ artifacts are introduced.
 
 ## Milestone 12 — Production diagnostics
 
-- Retain source spans on every AST node.
+- Retain source spans on every AST node. **Started:** AST construction now
+  preserves top-level statement spans; expression-level and declaration-site
+  spans remain in progress.
 - Add richer multi-span diagnostics and machine-readable output. **Initial
   machine-readable JSON diagnostics are available through `--json`; diagnostic
   labels are represented in text and JSON, while full AST-wide multi-span output

@@ -20,6 +20,8 @@
   `u64` target design notes.
 - Added `--json` / `--diagnostic-format=json` machine-readable source
   diagnostics for CLI tooling, with label support for secondary source ranges.
+- Started AST span retention by preserving top-level statement spans during AST
+  construction.
 
 ## 0.1.0-alpha.1
 

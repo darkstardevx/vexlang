@@ -13,7 +13,7 @@ use std::fs;
 use std::io::{self, BufRead, Read, Write};
 
 use analyzer::SemanticAnalyzer;
-use builder::build_ast;
+use builder::build_ast_with_spans;
 use codegen::{Backend, QbeBackend, TextBackend};
 use diagnostics::{Diagnostic, Span, span_for};
 use parser::parse_vex;
@@ -41,11 +41,15 @@ fn pipeline(source: &str) -> Result<Vec<ast::Stmt>, Diagnostic> {
         )
         .with_suggestion("check the preceding expression and add a semicolon if needed")
     })?;
-    let stmts = build_ast(pairs).map_err(|error| {
+    let spanned_stmts = build_ast_with_spans(pairs).map_err(|error| {
         let message = error.to_string();
         let needle = message.split('`').nth(1);
         Diagnostic::new("E1002", message.clone(), span_for(source, needle))
     })?;
+    let stmts = spanned_stmts
+        .into_iter()
+        .map(|spanned| spanned.stmt)
+        .collect::<Vec<_>>();
     let mut analyzer = SemanticAnalyzer::new();
     analyzer.analyze(&stmts).map_err(|error| {
         let needle = error.split('`').nth(1);
