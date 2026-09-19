@@ -139,6 +139,24 @@ The complete [Vex mdBook documentation](docs/src/intro.md) includes the
 [diagnostic format](docs/src/diagnostics.md), [feature status](docs/src/features.md),
 [development gates](docs/src/development.md), and [roadmap](docs/src/milestones.md).
 
+## 📦 Public alpha release checklist
+
+Current release: `0.1.0-alpha.1`.
+
+The package version is declared in `Cargo.toml` and exposed by
+`vexlang --version`. Before publishing a tagged alpha, run:
+
+```sh
+./scripts/check-release.sh
+./scripts/release-artifacts.sh dist
+```
+
+The second command produces the Cargo source package and a SHA-256 checksum
+under `dist/`. The package contains the textual IR implementation only; it
+does not contain a native executable. Verify the checksum and attach both
+files to the matching Git tag. The complete publish checklist is in the
+[release guide](docs/src/release.md).
+
 ## 🤝 Contributing
 
 Small, focused changes are welcome. See

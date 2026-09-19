@@ -95,7 +95,17 @@ tests, and an opt-in performance smoke test without adding heavyweight
 dependencies. Coverage-guided fuzzing and statistically rigorous benchmarks
 remain deferred.
 
-## Milestone 10 — 0.1 release
+## Milestone 10 — Public alpha hardening
+
+- Check CLI, Cargo metadata, changelog, and documentation version consistency.
+- Produce locked Cargo source artifacts with checksums.
+- Run deterministic generated-input, compatibility, and textual-IR smoke tests.
+- Validate release packages on tagged CI builds.
+
+**Status:** Complete for the `0.1.0-alpha.1` interpreter and typed-IR release.
+Native binaries are intentionally not produced.
+
+## Milestone 11 — 0.1 release
 
 - Freeze syntax, remove stale prototype artifacts, publish language
   documentation, and maintain CI for all quality gates.

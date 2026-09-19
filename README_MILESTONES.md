@@ -3,18 +3,20 @@
 This file is the forward-looking project plan. Completed work is recorded
 separately in [`README_COMPLETED_PHASES.md`](README_COMPLETED_PHASES.md).
 
-## Milestone 10 — Release hardening
+## Milestone 8 — Public alpha hardening
 
-- Freeze the `0.1.0-alpha.1` syntax and command behavior.
-- Add release artifacts, version/tag checks, and published-package validation.
-- Add stronger fuzzing and longer-running performance benchmarks.
-- Keep stable and MSRV CI gates green.
+- Keep the `0.1.0-alpha.1` syntax and command behavior stable.
+- Check package/CLI/documentation version consistency.
+- Produce a reproducible Cargo source artifact and SHA-256 checksum.
+- Exercise generated inputs, deterministic textual IR, compatibility, and
+  performance without heavyweight dependencies.
+- Keep stable, MSRV, documentation, and release-package CI gates green.
 
-**Current status:** The alpha interpreter and typed-IR prototype is ready for
-public use. A production `0.1` release remains blocked by the missing native
-backend and deferred language features.
+**Current status:** Complete for the public alpha scope. A production `0.1`
+release remains blocked by the missing native backend and deferred language
+features.
 
-## Milestone 11 — Language expansion
+## Milestone 9 — Language expansion
 
 - Add user-defined types and records.
 - Add collections and indexing.

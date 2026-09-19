@@ -106,11 +106,15 @@ fn read_source(path: Option<&str>) -> Result<String, String> {
 }
 
 fn usage() -> &'static str {
-    "usage: vexlang [check|run|fmt|test|build|ir] [FILE|-]\n       vexlang FILE   (backwards-compatible alias for run)"
+    "usage: vexlang [check|run|fmt|test|build|ir] [FILE|-]\n       vexlang FILE   (backwards-compatible alias for run)\n       vexlang --version"
 }
 
 fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();
+    if matches!(args.as_slice(), [flag] if flag == "--version" || flag == "-V") {
+        println!("vexlang {}", env!("CARGO_PKG_VERSION"));
+        return;
+    }
     let (command, path) = match args.as_slice() {
         [] => ("run", None),
         [one]

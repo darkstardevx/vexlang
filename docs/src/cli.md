@@ -4,6 +4,9 @@ The executable is available as `vexlang`; during development, use
 `cargo run --`. Every command accepts a file path or `-` for standard input.
 With no path, input is read from standard input.
 
+`vexlang --version` (or `-V`) prints the package version used by the release
+metadata checks.
+
 | Command | Behavior | Success |
 | --- | --- | --- |
 | `check FILE` | Parse and semantically validate without running | `0` |

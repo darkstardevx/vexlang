@@ -23,6 +23,19 @@ fn vex(source: &str, command: &str) -> std::process::Output {
 }
 
 #[test]
+fn cli_version_matches_package_metadata() {
+    let output = Command::new(env!("CARGO_BIN_EXE_vexlang"))
+        .arg("--version")
+        .output()
+        .expect("vexlang binary should start");
+    assert!(output.status.success());
+    assert_eq!(
+        String::from_utf8_lossy(&output.stdout).trim(),
+        format!("vexlang {}", env!("CARGO_PKG_VERSION"))
+    );
+}
+
+#[test]
 fn compatibility_corpus_runs_and_lowers() {
     let cases = [
         ("1 + 2 * 3;", "Int(7)"),
@@ -80,6 +93,19 @@ fn generated_arithmetic_corpus_is_consistent() {
             format!("Int({})", n * 2 + 6)
         );
     }
+}
+
+#[test]
+fn textual_ir_is_deterministic_and_not_a_native_artifact() {
+    let source = "let answer = 6 * 7; answer;";
+    let first = vex(source, "build");
+    let second = vex(source, "ir");
+    assert!(first.status.success());
+    assert!(second.status.success());
+    assert_eq!(first.stdout, second.stdout);
+    let ir = String::from_utf8_lossy(&first.stdout);
+    assert!(ir.contains("i32"));
+    assert!(!ir.contains("\u{7f}"));
 }
 
 #[test]

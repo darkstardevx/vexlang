@@ -27,3 +27,17 @@ request.
 
 When changing syntax, update the authoritative grammar in `src/vex.pest`, the
 language reference, focused tests, and any diagnostic examples together.
+
+## Release validation
+
+Public alpha releases use the checked-in scripts:
+
+```sh
+./scripts/check-release.sh
+./scripts/release-artifacts.sh dist
+```
+
+The first command checks version and package consistency. The second creates a
+locked Cargo source archive and SHA-256 checksum. It never creates a native
+binary; `build` remains a deterministic textual IR command. See the
+[public alpha release guide](release.md) for the publish checklist.

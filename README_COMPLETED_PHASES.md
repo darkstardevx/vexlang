@@ -49,6 +49,17 @@ This file records delivered phases. Forward-looking work is tracked in
 - Published the project as `0.1.0-alpha.1`, an alpha interpreter and typed-IR
   prototype.
 
+## Phase 8 — Public alpha hardening
+
+- Added `--version` and release-readiness checks tying the CLI, Cargo metadata,
+  README, and changelog to the same prerelease version.
+- Added reproducible Cargo source-package and SHA-256 artifact scripts without
+  inventing native binaries.
+- Added deterministic textual-IR and version smoke coverage, plus tag-triggered
+  package checks in CI.
+- Documented the public-alpha publish checklist and exact production-release
+  blockers.
+
 ## Current release posture
 
 The repository is public-ready for the labeled alpha scope. It is not yet a

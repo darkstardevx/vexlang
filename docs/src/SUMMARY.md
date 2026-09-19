@@ -6,5 +6,6 @@
 - [Diagnostics](diagnostics.md)
 - [Features and limitations](features.md)
 - [Development and quality](development.md)
+- [Public alpha release](release.md)
 - [Milestones](milestones.md)
 - [Contributing](contributing.md)

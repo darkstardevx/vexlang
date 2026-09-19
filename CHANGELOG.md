@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.0-alpha.1
+
+- Hardened public-alpha release metadata with `vexlang --version`,
+  package consistency checks, reproducible source artifacts, and checksums.
+- Added deterministic textual-IR and release smoke coverage and a documented
+  publish checklist. Native binaries are intentionally not produced.
+
 ## Unreleased (alpha)
 
 - Stabilized parsing and AST construction for the core expression language.
