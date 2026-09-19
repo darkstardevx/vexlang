@@ -85,31 +85,23 @@ first channels:
 ```text
 ⚡ Welcome to VEX // CYBERCORE
 
-Vex is an alpha programming-language project: an interpreter and typed-IR
-prototype built for experiments in syntax, semantics, diagnostics, and
-eventual compilation.
+Vex is an alpha interpreter and typed-IR prototype exploring syntax, semantics,
+diagnostics, and eventual compilation.
 
 Start here:
 • Project: https://github.com/darkstardevx/vexlang
 • Contributor guide: https://github.com/darkstardevx/vexlang/blob/main/CONTRIBUTING.md
-• Documentation: https://github.com/darkstardevx/vexlang/tree/main/docs
-• Current contact: darkstar_dev
+• Docs: https://github.com/darkstardevx/vexlang/tree/main/docs
+• Discord contact: darkstar_dev
 
-What belongs here:
-• language design and syntax discussion
-• interpreter, analyzer, IR, and tooling development
-• documentation, tests, examples, and contributor onboarding
-• experiments, demos, and constructive feedback
+Discuss language design, interpreter/compiler development, tests, docs,
+examples, demos, and constructive feedback.
 
-Quick orientation:
-1. Read the README and contributor guide.
-2. Check the roadmap before proposing a new feature.
-3. Introduce yourself in #general.
-4. Look for beginner-friendly work in #good-first-issues.
+New here? Read the README, check the roadmap, introduce yourself in #general,
+and look for beginner-friendly work in #good-first-issues.
 
-Vex is intentionally early-stage. APIs and syntax may change, and the current
-build command emits validated textual IR rather than native machine code.
-Thanks for helping build it carefully.
+Vex is early-stage: APIs may change and build currently emits textual IR only.
+Thanks for helping build it carefully!
 ```
 
 #### `#rules`
@@ -117,40 +109,18 @@ Thanks for helping build it carefully.
 ```text
 🛡️ VEX // CYBERCORE — COMMUNITY RULES
 
-1. Be constructive.
-   Critique code, designs, and proposals specifically. Do not attack people.
-
-2. Welcome newcomers.
-   Explain context, link documentation, and make room for questions.
-
-3. Keep discussions technical and on-topic.
-   Use the appropriate channel for language design, compiler development,
-   support, showcases, and off-topic conversation.
-
-4. Respect project boundaries.
-   Do not present experimental Vex behavior as stable or production-ready.
-   Follow the documented roadmap and compatibility expectations.
-
-5. Do not post security vulnerabilities publicly.
-   Send private security reports to cybercore.sh@gmail.com with the affected
-   version, reproduction steps, and impact. Do not share exploit details in
-   Discord channels.
-
+1. Be constructive and respectful. Critique ideas and code, never people.
+2. Welcome newcomers; explain context and make room for questions.
+3. Keep discussion on-topic and use the appropriate channel.
+4. Do not present alpha behavior as stable or production-ready.
+5. Never post security vulnerabilities publicly. Report them privately to
+   cybercore.sh@gmail.com with version, reproduction steps, and impact.
 6. No spam, harassment, discrimination, impersonation, or malicious content.
-   Moderators may remove content or restrict access to protect the community.
+7. Respect licenses, authorship, privacy, and other contributors' work.
+8. Summarize important decisions in GitHub issues, discussions, PRs, or docs.
 
-7. Respect licenses and authorship.
-   Do not repost private material or claim another contributor's work.
-   Vex is released under the MIT license; follow the terms of other projects
-   and dependencies.
-
-8. Keep project decisions discoverable.
-   Important design decisions should be summarized in GitHub issues,
-   discussions, pull requests, or documentation rather than left only in chat.
-
-By participating here, you agree to follow these rules and reasonable
-moderator guidance. If something feels unsafe or unclear, contact
-darkstar_dev privately.
+Moderators may remove content or restrict access to protect the community.
+Questions or concerns? Contact darkstar_dev privately.
 ```
 
 ## Code of conduct
