@@ -9,15 +9,39 @@ mod ir;
 mod parser;
 mod project;
 
+use std::collections::HashMap;
 use std::fs;
 use std::io::{self, BufRead, Read, Write};
 
 use analyzer::SemanticAnalyzer;
-use builder::build_ast_with_spans;
+use builder::{SpannedStmt, build_ast_with_spans};
 use codegen::{Backend, QbeBackend, TextBackend};
 use diagnostics::{Diagnostic, Span, span_for};
 use parser::parse_vex;
 use pest::error::LineColLocation;
+
+fn declaration_spans(source: &str, stmts: &[SpannedStmt]) -> HashMap<String, Span> {
+    let mut spans = HashMap::new();
+    for spanned in stmts {
+        let names: Vec<&str> = match &spanned.stmt {
+            ast::Stmt::Let { name, .. }
+            | ast::Stmt::Function { name, .. }
+            | ast::Stmt::Record { name, .. }
+            | ast::Stmt::Enum { name, .. } => vec![name.as_str()],
+            _ => Vec::new(),
+        };
+        let text = &source[spanned.span.start..spanned.span.end];
+        for name in names {
+            if let Some(offset) = text.find(name) {
+                spans.entry(name.to_string()).or_insert(Span {
+                    start: spanned.span.start + offset,
+                    end: spanned.span.start + offset + name.len(),
+                });
+            }
+        }
+    }
+    spans
+}
 
 fn pipeline(source: &str) -> Result<Vec<ast::Stmt>, Diagnostic> {
     let pairs = parse_vex(source).map_err(|error| {
@@ -46,6 +70,7 @@ fn pipeline(source: &str) -> Result<Vec<ast::Stmt>, Diagnostic> {
         let needle = message.split('`').nth(1);
         Diagnostic::new("E1002", message.clone(), span_for(source, needle))
     })?;
+    let declarations = declaration_spans(source, &spanned_stmts);
     let stmts = spanned_stmts
         .into_iter()
         .map(|spanned| spanned.stmt)
@@ -59,7 +84,18 @@ fn pipeline(source: &str) -> Result<Vec<ast::Stmt>, Diagnostic> {
             diagnostic = diagnostic
                 .with_label(span, "undefined name referenced here")
                 .with_suggestion("declare the variable with `let` before using it");
-        } else if error.contains("boolean") {
+        } else if error.contains("undefined function") {
+            let span = diagnostic.span;
+            diagnostic = diagnostic
+                .with_label(span, "undefined function called here")
+                .with_suggestion("declare the function with `fn` before calling it");
+        } else if let Some(name) = needle {
+            if let Some(span) = declarations.get(name) {
+                diagnostic = diagnostic.with_label(*span, "declared here");
+            }
+        }
+
+        if error.contains("boolean") {
             diagnostic =
                 diagnostic.with_suggestion("use `true` or `false`, or compare numeric values");
         }
@@ -183,29 +219,83 @@ fn identifier_spans(source: &str) -> Vec<(String, Span)> {
     out
 }
 
-fn recovered_undefined_variable_diagnostics(source: &str) -> Vec<Diagnostic> {
+fn recovered_undefined_name_diagnostics(source: &str) -> Vec<Diagnostic> {
+    #[derive(Clone, Copy)]
+    enum DeclarationKind {
+        Variable,
+        Function,
+        Type,
+    }
+
+    fn prev_non_ws(source: &str, index: usize) -> Option<u8> {
+        source.as_bytes()[..index]
+            .iter()
+            .rev()
+            .copied()
+            .find(|byte| !byte.is_ascii_whitespace())
+    }
+
+    fn next_non_ws(source: &str, index: usize) -> Option<u8> {
+        source.as_bytes()[index..]
+            .iter()
+            .copied()
+            .find(|byte| !byte.is_ascii_whitespace())
+    }
+
     let identifiers = identifier_spans(source);
     let keywords = [
         "let", "fn", "record", "enum", "if", "else", "while", "break", "continue", "return",
         "true", "false", "match", "Ok", "Err", "i32", "u64", "bool", "string", "unit", "Result",
-        "map", "map_get", "ok", "err", "print", "println",
     ];
-    let mut declared: std::collections::HashMap<String, Span> = std::collections::HashMap::new();
+    let builtins = ["map", "map_get", "ok", "err", "print", "println"];
+    let mut variables: HashMap<String, Span> = HashMap::new();
+    let mut functions: HashMap<String, Span> = HashMap::new();
     let mut diagnostics = Vec::new();
-    let mut expect_declaration_name = false;
+    let mut expect_declaration_name = None;
 
     for (name, span) in identifiers {
         if keywords.contains(&name.as_str()) {
-            expect_declaration_name = matches!(name.as_str(), "let" | "fn" | "record" | "enum");
+            expect_declaration_name = match name.as_str() {
+                "let" => Some(DeclarationKind::Variable),
+                "fn" => Some(DeclarationKind::Function),
+                "record" | "enum" => Some(DeclarationKind::Type),
+                _ => None,
+            };
             continue;
         }
-        if expect_declaration_name {
-            declared.insert(name, span);
-            expect_declaration_name = false;
+        if builtins.contains(&name.as_str()) {
+            expect_declaration_name = None;
             continue;
         }
-        expect_declaration_name = false;
-        if declared.contains_key(&name) {
+        if let Some(kind) = expect_declaration_name.take() {
+            match kind {
+                DeclarationKind::Variable => {
+                    variables.insert(name, span);
+                }
+                DeclarationKind::Function => {
+                    functions.insert(name, span);
+                }
+                DeclarationKind::Type => {}
+            }
+            continue;
+        }
+        if matches!(prev_non_ws(source, span.start), Some(b'.'))
+            || matches!(next_non_ws(source, span.end), Some(b':'))
+        {
+            continue;
+        }
+        let is_call = matches!(next_non_ws(source, span.end), Some(b'('));
+        if is_call {
+            if !functions.contains_key(&name) {
+                diagnostics.push(
+                    Diagnostic::new("E2001", format!("undefined function `{name}`"), span)
+                        .with_label(span, "undefined function called here")
+                        .with_suggestion("declare the function with `fn` before calling it"),
+                );
+            }
+            continue;
+        }
+        if variables.contains_key(&name) || functions.contains_key(&name) {
             continue;
         }
         diagnostics.push(
@@ -378,8 +468,11 @@ fn main() {
                 }
             },
             Err(error) => {
-                if command == "check" && error.message.contains("undefined variable") {
-                    let recovered = recovered_undefined_variable_diagnostics(&source);
+                if command == "check"
+                    && (error.message.contains("undefined variable")
+                        || error.message.contains("undefined function"))
+                {
+                    let recovered = recovered_undefined_name_diagnostics(&source);
                     if recovered.len() > 1 {
                         report_diagnostics(&recovered, &source, path, diagnostic_json);
                         std::process::exit(1);

@@ -94,18 +94,32 @@ fn diagnostic_fixture_is_stable() {
 
 #[test]
 fn check_reports_multiple_undefined_variables() {
-    let output = vex("missing_one;\nmissing_two;\n", "check");
+    let output = vex("missing_one;\nmissing_two;\nmissing_fn();\n", "check");
     assert!(!output.status.success());
     let diagnostic = String::from_utf8_lossy(&output.stderr);
     assert!(diagnostic.contains("undefined variable `missing_one`"));
     assert!(diagnostic.contains("undefined variable `missing_two`"));
+    assert!(diagnostic.contains("undefined function `missing_fn`"));
 
-    let output = vex_args("missing_one;\nmissing_two;\n", &["--json", "check", "-"]);
+    let output = vex_args(
+        "missing_one;\nmissing_two;\nmissing_fn();\n",
+        &["--json", "check", "-"],
+    );
     assert!(!output.status.success());
     let diagnostic = String::from_utf8_lossy(&output.stderr);
     assert!(diagnostic.trim_start().starts_with('['));
     assert!(diagnostic.contains("undefined variable `missing_one`"));
     assert!(diagnostic.contains("undefined variable `missing_two`"));
+    assert!(diagnostic.contains("undefined function `missing_fn`"));
+}
+
+#[test]
+fn diagnostics_can_label_declaration_sites() {
+    let output = vex("let x: bool = 1;\n", "check");
+    assert!(!output.status.success());
+    let diagnostic = String::from_utf8_lossy(&output.stderr);
+    assert!(diagnostic.contains("type mismatch for `x`"));
+    assert!(diagnostic.contains("declared here"));
 }
 
 #[test]
