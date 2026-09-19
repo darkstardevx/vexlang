@@ -1,0 +1,86 @@
+# Language reference
+
+Vex source is a sequence of statements. Statements end with `;`, except
+function declarations and block-bodied control-flow statements. Whitespace and
+`//` comments are ignored.
+
+## Literals and names
+
+```vex
+42;                 // inferred signed integer
+true;               // boolean
+"hello";            // string
+let count = 3;
+let total: i32 = count + 2;
+let bytes: u64 = u64(9);
+```
+
+Identifiers begin with a letter or `_` and may contain letters, digits, and
+underscores. The keywords `let`, `if`, `else`, `while`, `break`, `continue`,
+`fn`, and `return` cannot be used as identifiers.
+
+## Expressions and operators
+
+Operators, from lowest to highest precedence, are:
+
+| Precedence | Operators | Meaning |
+| --- | --- | --- |
+| 1 | `&&`, `||`, `==` | Boolean logic and equality |
+| 2 | `<`, `>` | Numeric comparison |
+| 3 | `+`, `-` | Addition and subtraction |
+| 4 | `*`, `/` | Multiplication and division |
+| 5 | unary `-`, `!` | Numeric negation and boolean not |
+
+Parentheses override precedence. `&&` and `||` short-circuit. Arithmetic is
+checked for overflow, and division by zero is a runtime error.
+
+## Declarations and assignment
+
+`let name = expression;` infers a type. An optional annotation can be
+`i32`, `u64`, `bool`, `string`, or `res` (the latter is currently rejected as
+unsupported). Assignment updates an existing variable:
+
+```vex
+let index: i32 = 0;
+index = index + 1;
+```
+
+`i32` values must fit the signed 32-bit range. `u64` values are represented
+separately at runtime and cannot contain negative values. Explicit conversions
+are available as `i32(value)` and `u64(value)`.
+
+## Control flow
+
+```vex
+if ready { println("go"); } else { println("wait"); }
+
+while index < 3 {
+    index = index + 1;
+}
+```
+
+Blocks may contain declarations and statements, followed by an optional final
+expression. `break` and `continue` are valid only inside a loop. Loops stop
+after one million iterations.
+
+## Functions
+
+Functions have typed parameters and an optional return type:
+
+```vex
+fn add(left: i32, right: i32) -> i32 {
+    left + right
+}
+
+add(2, 3);
+```
+
+Functions can recurse, return explicitly with `return expression;`, and call
+other declared functions. Active call depth is limited to 256. Built-ins
+`print(value)` and `println(value)` write to standard output and return unit.
+
+## Program result
+
+The interpreter evaluates top-level statements in order and prints the final
+value for `run`. `check` performs parsing and semantic analysis without
+evaluation.

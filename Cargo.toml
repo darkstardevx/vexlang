@@ -1,7 +1,10 @@
 [package]
 name = "vexlang"
-version = "0.1.0"
+version = "0.1.0-alpha.1"
 edition = "2024"
+rust-version = "1.85"
+license = "MIT"
+description = "Alpha interpreter and typed IR prototype for the Vex language"
 
 # If you had [workspace] here, remove it for now.
 # You only need workspace if you are splitting the compiler into
@@ -10,7 +13,3 @@ edition = "2024"
 [dependencies]
 pest = "2.7"
 pest_derive = "2.7"
-logos = "0.15"
-regex = "1.13.1"
-walkdir = "2.5.0"
-lazy_static = "1.5.0"

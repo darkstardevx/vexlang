@@ -3,8 +3,5 @@
 # Ignore these files
 .directory
 
-# Ignore these folders
-/tests/
-/examples/
+# Build output
 /target/
-

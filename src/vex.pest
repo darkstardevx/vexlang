@@ -1,55 +1,40 @@
-// --- Primitives ---
 WHITESPACE = _{ " " | "\t" | "\n" | "\r" }
-COMMENT    = _{ "//" ~ (!"\n" ~ ANY)* }
+COMMENT = _{ "//" ~ (!"\n" ~ ANY)* }
 
-// Keywords (added to ensure they are parsed as tokens, not identifiers)
-KW_LET    = { "let" }
-KW_IF     = { "if" }
-KW_ELSE   = { "else" }
-KW_WHILE  = { "while" }
-KW_FN     = { "fn" }
-KW_LAYOUT = { "layout" }
+KW_LET = _{ "let" }
+KW_IF = _{ "if" }
+KW_ELSE = _{ "else" }
+KW_WHILE = _{ "while" }
+KW_BREAK = _{ "break" }
+KW_CONTINUE = _{ "continue" }
+KW_FN = _{ "fn" }
+KW_RETURN = _{ "return" }
 
-// Identifiers & Literals
-ident     = @{ (ASCII_ALPHA | "_") ~ (ASCII_ALPHANUMERIC | "_")* }
-int       = @{ ASCII_DIGIT+ }
-type_name = { "i32" | "u64" | "f64" | "bool" | "res" | ident }
+ident = @{ !(KW_LET | KW_IF | KW_ELSE | KW_WHILE | KW_BREAK | KW_CONTINUE | KW_FN | KW_RETURN)
+  ~ (ASCII_ALPHA | "_") ~ (ASCII_ALPHANUMERIC | "_")* }
+int = @{ ASCII_DIGIT+ }
+string = @{ "\"" ~ ( "\\\"" | "\\\\" | !"\"" ~ ANY )* ~ "\"" }
+type_name = { "i32" | "u64" | "f64" | "bool" | "string" | "res" | ident }
 
-// --- Operators ---
-add = { "+" }
-sub = { "-" }
-mul = { "*" }
-div = { "/" }
-eq  = { "==" }
-lt  = { "<" }
-gt  = { ">" }
+unary_op = { "-" | "!" }
+atom = _{ int | string | if_expr | block | call | ident | paren }
+call = { ident ~ "(" ~ (expr ~ ("," ~ expr)*)? ~ ")" }
+paren = { "(" ~ expr ~ ")" }
+expr = { term ~ (bin_op ~ term)* }
+term = { unary_op? ~ atom }
+bin_op = _{ "+" | "-" | "*" | "/" | "&&" | "||" | "==" | "<" | ">" }
 
-// --- Expressions ---
-// Added fn_call to atom. Unary ops (like -x) are crucial for "strength"
-unary_op = _{ sub }
-atom     = _{ fn_call | int | ident | "(" ~ expr ~ ")" }
-fn_call  = { ident ~ "(" ~ args? ~ ")" }
-args     = { expr ~ ("," ~ expr)* }
-
-// The expression logic
-expr     = { (unary_op? ~ atom) ~ (bin_op ~ unary_op? ~ atom)* }
-bin_op   = _{ add | sub | mul | div | eq | lt | gt }
-
-// --- Declarations ---
-field     = { ident ~ ":" ~ type_name ~ ";" }
-type_decl = { KW_LAYOUT ~ ident ~ "{" ~ field* ~ "}" }
-fn_decl   = { KW_FN ~ ident ~ "(" ~ params? ~ ")" ~ ("->" ~ type_name)? ~ block }
-params    = { param ~ ("," ~ param)* }
-param     = { ident ~ ":" ~ type_name }
-
-// --- Control Flow ---
-// Blocks can return values (expression-oriented), similar to Rust
-block      = { "{" ~ stmt* ~ expr? ~ "}" }
-if_stmt    = { KW_IF ~ expr ~ block ~ (KW_ELSE ~ block)? }
+block = { "{" ~ stmt* ~ expr? ~ "}" }
+if_stmt = { KW_IF ~ expr ~ block ~ (KW_ELSE ~ block)? }
+if_expr = { KW_IF ~ expr ~ block ~ (KW_ELSE ~ block)? }
 while_stmt = { KW_WHILE ~ expr ~ block }
-
-// --- Program Structure ---
-let_decl  = { KW_LET ~ ident ~ (":" ~ type_name)? ~ "=" ~ expr ~ ";" }
-expr_stmt = { expr ~ ";" } // Give this a name so the Rule variant is generated
-stmt      = { let_decl | fn_decl | type_decl | if_stmt | while_stmt | expr_stmt }
-program   = { SOI ~ stmt* ~ EOI }
+break_stmt = { KW_BREAK ~ ";" }
+continue_stmt = { KW_CONTINUE ~ ";" }
+return_stmt = { KW_RETURN ~ expr? ~ ";" }
+let_decl = { KW_LET ~ ident ~ (":" ~ type_name)? ~ "=" ~ expr ~ ";" }
+assign = { ident ~ "=" ~ expr ~ ";" }
+param = { ident ~ ":" ~ type_name }
+fn_decl = { KW_FN ~ ident ~ "(" ~ (param ~ ("," ~ param)*)? ~ ")" ~ ("->" ~ type_name)? ~ block }
+expr_stmt = { expr ~ ";" }
+stmt = { fn_decl | let_decl | assign | if_stmt | while_stmt | break_stmt | continue_stmt | return_stmt | expr_stmt }
+program = { SOI ~ stmt* ~ EOI }

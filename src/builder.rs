@@ -1,105 +1,432 @@
-//! ## Vex [Vexlang] ##
-//! # Version: 0.0.1 (SemVer)
-//! # Inspired by Rust & Zig
-//! # Built for Cybercore ecosystem code consistency and ease
-//! # GitHub: [Vex] (https://github.com/darkstardevx/vex)
-//! # Tag reference doc in /home/raven/devspace/docs/tags/TAG_API.md
-//!
+use pest::Parser;
+use pest::iterators::{Pair, Pairs};
 
-use pest::iterators::Pair;
-use pest::iterators::Pairs;
+use crate::ast::{Expr, Op, Stmt, Type};
+use crate::parser::{Rule, VexParser};
 
-use crate::ast::{Expr, Op as AstOp};
-use crate::parser::Rule;
-use pest::pratt_parser::{Assoc, Op, PrattParser};
+#[derive(Debug, Clone, PartialEq)]
+pub struct BuildError(pub String);
 
-lazy_static::lazy_static! {
-    static ref PRATT: PrattParser<Rule> = {
-        PrattParser::new()
-        .op(Op::infix(Rule::eq, Assoc::Left) | Op::infix(Rule::lt, Assoc::Left) | Op::infix(Rule::gt, Assoc::Left))
-        .op(Op::infix(Rule::add, Assoc::Left) | Op::infix(Rule::sub, Assoc::Left))
-        .op(Op::infix(Rule::mul, Assoc::Left) | Op::infix(Rule::div, Assoc::Left))
-        .op(Op::prefix(Rule::sub)) // Unary minus
-    };
-}
-
-pub fn build_ast(pairs: Pairs<Rule>) -> Vec<Stmt> {
-    let mut stmts = Vec::new();
-    for pair in pairs {
-        match pair.as_rule() {
-            // Match your top-level rules (e.g., Rule::stmt)
-            Rule::stmt => stmts.push(build_stmt(pair)),
-            _ => {} // Ignore whitespace or other trivia
-        }
+impl std::fmt::Display for BuildError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&self.0)
     }
-    stmts
 }
 
-pub fn build_stmt(pair: Pair<Rule>) -> Stmt {
-    // Unwrap the 'stmt' wrapper to get the specific statement type (e.g., let_decl)
+impl std::error::Error for BuildError {}
+
+pub fn build_ast(pairs: Pairs<Rule>) -> Result<Vec<Stmt>, BuildError> {
+    let program = pairs
+        .into_iter()
+        .find(|pair| pair.as_rule() == Rule::program)
+        .ok_or_else(|| BuildError("parser returned no program".into()))?;
+    program
+        .into_inner()
+        .filter(|pair| pair.as_rule() == Rule::stmt)
+        .map(build_stmt)
+        .collect()
+}
+
+fn build_stmt(pair: Pair<Rule>) -> Result<Stmt, BuildError> {
     let inner = pair
         .into_inner()
         .next()
-        .expect("Stmt should have an inner variant");
-
+        .ok_or_else(|| BuildError("empty statement".into()))?;
     match inner.as_rule() {
         Rule::let_decl => {
-            let mut inner_tokens = inner.into_inner();
-            let name = inner_tokens.next().unwrap().as_str().to_string();
-
-            let mut ty = None;
-            let next = inner_tokens.next().expect("Expected type or expr");
-
-            let value = if next.as_rule() == Rule::type_name {
-                ty = Some(Type::Custom(next.as_str().to_string()));
-                build_expr(inner_tokens.next().unwrap())
+            let mut parts = inner.into_inner();
+            let name = parts
+                .next()
+                .ok_or_else(|| BuildError("let declaration is missing a name".into()))?
+                .as_str()
+                .to_string();
+            let first = parts
+                .next()
+                .ok_or_else(|| BuildError(format!("let `{name}` is missing an initializer")))?;
+            let (ty, expr_pair) = if first.as_rule() == Rule::type_name {
+                (
+                    parse_type(first.as_str()),
+                    parts.next().ok_or_else(|| {
+                        BuildError(format!("let `{name}` is missing an initializer"))
+                    })?,
+                )
             } else {
-                build_expr(next)
+                (Type::Inferred, first)
             };
-
-            Stmt::Let {
+            Ok(Stmt::Let {
                 name,
-                ty: ty.unwrap_or(Type::Custom("Unknown".to_string())),
-                value,
+                ty,
+                value: build_expr(expr_pair)?,
+            })
+        }
+        Rule::assign => {
+            let mut parts = inner.into_inner();
+            let name = parts
+                .next()
+                .ok_or_else(|| BuildError("assignment is missing a name".into()))?
+                .as_str()
+                .to_string();
+            let value = build_expr(parts.next().ok_or_else(|| {
+                BuildError(format!("assignment to `{name}` is missing a value"))
+            })?)?;
+            Ok(Stmt::Assign { name, value })
+        }
+        Rule::if_stmt => {
+            let mut parts = inner.into_inner();
+            let condition = build_expr(
+                parts
+                    .next()
+                    .ok_or_else(|| BuildError("if statement is missing a condition".into()))?,
+            )?;
+            let then_branch = build_block_expr(
+                parts
+                    .next()
+                    .ok_or_else(|| BuildError("if statement is missing a then branch".into()))?,
+            )?;
+            let else_branch = parts
+                .next()
+                .map(build_block_expr)
+                .transpose()?
+                .map(Box::new);
+            Ok(Stmt::If {
+                condition,
+                then_branch: Box::new(then_branch),
+                else_branch,
+            })
+        }
+        Rule::while_stmt => {
+            let mut parts = inner.into_inner();
+            let condition = build_expr(
+                parts
+                    .next()
+                    .ok_or_else(|| BuildError("while statement is missing a condition".into()))?,
+            )?;
+            let body = build_block_expr(
+                parts
+                    .next()
+                    .ok_or_else(|| BuildError("while statement is missing a body".into()))?,
+            )?;
+            Ok(Stmt::While {
+                condition,
+                body: Box::new(body),
+            })
+        }
+        Rule::break_stmt => Ok(Stmt::Break),
+        Rule::continue_stmt => Ok(Stmt::Continue),
+        Rule::return_stmt => Ok(Stmt::Return(
+            inner.into_inner().next().map(build_expr).transpose()?,
+        )),
+        Rule::fn_decl => {
+            let mut parts = inner.into_inner();
+            let name = parts
+                .next()
+                .ok_or_else(|| BuildError("function is missing a name".into()))?
+                .as_str()
+                .to_string();
+            let mut params = Vec::new();
+            let mut return_type = Type::Unit;
+            let mut body = None;
+            for part in parts {
+                match part.as_rule() {
+                    Rule::param => {
+                        let mut p = part.into_inner();
+                        let n = p.next().unwrap().as_str().to_string();
+                        let t = parse_type(p.next().unwrap().as_str());
+                        params.push((n, t));
+                    }
+                    Rule::type_name => return_type = parse_type(part.as_str()),
+                    Rule::block => body = Some(build_block_expr(part)?),
+                    _ => {}
+                }
             }
+            Ok(Stmt::Function {
+                name,
+                params,
+                return_type,
+                body: body.ok_or_else(|| BuildError("function is missing a body".into()))?,
+            })
         }
-
         Rule::expr_stmt => {
-            let inner = inner.into_inner().next().unwrap();
-            Stmt::ExprStmt(build_expr(inner))
+            let expr = inner
+                .into_inner()
+                .next()
+                .ok_or_else(|| BuildError("empty expression statement".into()))?;
+            Ok(Stmt::ExprStmt(build_expr(expr)?))
         }
-
-        _ => todo!("Implement lowering for {:?}", inner.as_rule()),
+        other => Err(BuildError(format!(
+            "unsupported statement `{other:?}`; supported statements are let, assignment, if, while, break, continue, and expressions"
+        ))),
     }
 }
 
-pub fn build_expr(pairs: pest::iterators::Pairs<Rule>) -> Expr {
-    PRATT
-        .map_primary(|primary| match primary.as_rule() {
-            Rule::int => Expr::Int(primary.as_str().parse().unwrap()),
-            Rule::ident => Expr::Var(primary.as_str().to_string()),
-            Rule::expr => build_expr(primary.into_inner()), // This correctly recurses
-            _ => unreachable!(),
-        })
-        .map_infix(|lhs, op, rhs| {
-            let op_type = match op.as_rule() {
-                Rule::add => AstOp::Add,
-                Rule::sub => AstOp::Sub,
-                Rule::mul => AstOp::Mul,
-                Rule::div => AstOp::Div,
-                Rule::eq => AstOp::Eq,
-                Rule::lt => AstOp::Lt,
-                Rule::gt => AstOp::Gt,
-                _ => unreachable!(),
+fn parse_type(name: &str) -> Type {
+    match name {
+        "i32" => Type::I32,
+        "u64" => Type::U64,
+        "f64" => Type::F64,
+        "bool" => Type::Bool,
+        "string" => Type::String,
+        "res" => Type::Res,
+        other => Type::Custom(other.to_string()),
+    }
+}
+
+fn build_block_expr(pair: Pair<Rule>) -> Result<Expr, BuildError> {
+    let mut stmts = Vec::new();
+    let mut last_expr: Option<Box<Expr>> = None;
+
+    for inner in pair.into_inner() {
+        if last_expr.is_some() {
+            stmts.push(Stmt::ExprStmt(*last_expr.take().unwrap()));
+        }
+        match inner.as_rule() {
+            Rule::stmt => {
+                let stmt = build_stmt(inner)?;
+                if let Stmt::If {
+                    condition,
+                    then_branch,
+                    else_branch,
+                } = stmt
+                {
+                    last_expr = Some(Box::new(Expr::If {
+                        condition: Box::new(condition),
+                        then_branch,
+                        else_branch,
+                    }));
+                } else {
+                    stmts.push(stmt);
+                }
+            }
+            Rule::expr => last_expr = Some(Box::new(build_expr(inner)?)),
+            Rule::if_expr => last_expr = Some(Box::new(build_expr(inner)?)),
+            _ => {
+                return Err(BuildError(format!(
+                    "unsupported block item `{:?}`",
+                    inner.as_rule()
+                )));
+            }
+        }
+    }
+
+    Ok(Expr::Block(stmts, last_expr))
+}
+
+struct TextParser<'a> {
+    input: &'a [u8],
+    pos: usize,
+}
+
+impl<'a> TextParser<'a> {
+    fn new(input: &'a str) -> Self {
+        Self {
+            input: input.as_bytes(),
+            pos: 0,
+        }
+    }
+
+    fn parse(mut self) -> Result<Expr, BuildError> {
+        let expr = self.binary(0)?;
+        self.ws();
+        if self.pos != self.input.len() {
+            return Err(BuildError("unexpected token in expression".into()));
+        }
+        Ok(expr)
+    }
+
+    fn binary(&mut self, min: u8) -> Result<Expr, BuildError> {
+        let mut left = self.unary()?;
+        loop {
+            self.ws();
+            let (op, precedence) = match self.peek() {
+                Some(b'|') if self.input.get(self.pos + 1) == Some(&b'|') => (Op::Or, 1),
+                Some(b'&') if self.input.get(self.pos + 1) == Some(&b'&') => (Op::And, 2),
+                Some(b'=') if self.input.get(self.pos + 1) == Some(&b'=') => (Op::Eq, 1),
+                Some(b'<') => (Op::Lt, 3),
+                Some(b'>') => (Op::Gt, 3),
+                Some(b'+') => (Op::Add, 4),
+                Some(b'-') => (Op::Sub, 4),
+                Some(b'*') => (Op::Mul, 5),
+                Some(b'/') => (Op::Div, 5),
+                _ => break,
             };
-            Expr::BinaryOp(Box::new(lhs), op_type, Box::new(rhs))
-        })
-        .map_prefix(|op, rhs| {
-            let op_type = match op.as_rule() {
-                Rule::sub => AstOp::Sub,
-                _ => unreachable!(),
+            if precedence < min {
+                break;
+            }
+            self.pos += if matches!(op, Op::Or | Op::And | Op::Eq) {
+                2
+            } else {
+                1
             };
-            Expr::UnaryOp(op_type, Box::new(rhs))
-        })
-        .parse(pairs)
+            let right = self.binary(precedence + 1)?;
+            left = Expr::BinaryOp(Box::new(left), op, Box::new(right));
+        }
+        Ok(left)
+    }
+
+    fn unary(&mut self) -> Result<Expr, BuildError> {
+        self.ws();
+        if self.peek() == Some(b'-') {
+            self.pos += 1;
+            return Ok(Expr::UnaryOp(Op::Sub, Box::new(self.unary()?)));
+        }
+        if self.peek() == Some(b'!') {
+            self.pos += 1;
+            return Ok(Expr::UnaryOp(Op::Not, Box::new(self.unary()?)));
+        }
+        if self.peek() == Some(b'(') {
+            self.pos += 1;
+            let value = self.binary(0)?;
+            self.ws();
+            if self.peek() != Some(b')') {
+                return Err(BuildError("missing `)`".into()));
+            }
+            self.pos += 1;
+            return Ok(value);
+        }
+        if self.peek() == Some(b'"') {
+            self.pos += 1;
+            let start = self.pos;
+            while self.peek().is_some_and(|c| c != b'"') {
+                self.pos += 1;
+            }
+            if self.peek() != Some(b'"') {
+                return Err(BuildError("unterminated string literal".into()));
+            }
+            let value = String::from_utf8_lossy(&self.input[start..self.pos]).to_string();
+            self.pos += 1;
+            return Ok(Expr::String(value));
+        }
+        if self.peek().is_some_and(|c| c.is_ascii_digit()) {
+            let start = self.pos;
+            while self.peek().is_some_and(|c| c.is_ascii_digit()) {
+                self.pos += 1;
+            }
+            return std::str::from_utf8(&self.input[start..self.pos])
+                .map_err(|_| BuildError("invalid integer literal".into()))?
+                .parse()
+                .map(Expr::Int)
+                .map_err(|_| BuildError("integer literal out of range".into()));
+        }
+        let start = self.pos;
+        while self
+            .peek()
+            .is_some_and(|c| c.is_ascii_alphanumeric() || c == b'_')
+        {
+            self.pos += 1;
+        }
+        if self.pos == start {
+            return Err(BuildError("expected expression".into()));
+        }
+        let name = String::from_utf8_lossy(&self.input[start..self.pos]);
+        match name.as_ref() {
+            "true" => Ok(Expr::Bool(true)),
+            "false" => Ok(Expr::Bool(false)),
+            _ => {
+                self.ws();
+                if self.peek() == Some(b'(') {
+                    self.pos += 1;
+                    let mut args = Vec::new();
+                    self.ws();
+                    if self.peek() != Some(b')') {
+                        loop {
+                            args.push(self.binary(0)?);
+                            self.ws();
+                            if self.peek() == Some(b',') {
+                                self.pos += 1;
+                                continue;
+                            }
+                            break;
+                        }
+                    }
+                    self.ws();
+                    if self.peek() != Some(b')') {
+                        return Err(BuildError("missing `)` in call".into()));
+                    }
+                    self.pos += 1;
+                    Ok(Expr::Call(name.into(), args))
+                } else {
+                    Ok(Expr::Var(name.into()))
+                }
+            }
+        }
+    }
+
+    fn ws(&mut self) {
+        while self.peek().is_some_and(|c| c.is_ascii_whitespace()) {
+            self.pos += 1;
+        }
+    }
+
+    fn peek(&self) -> Option<u8> {
+        self.input.get(self.pos).copied()
+    }
+}
+
+fn build_expr(pair: Pair<Rule>) -> Result<Expr, BuildError> {
+    match pair.as_rule() {
+        Rule::expr | Rule::term | Rule::atom | Rule::paren => {
+            let text = pair.as_str().trim();
+            if text.starts_with("if ") {
+                let parsed = VexParser::parse(Rule::if_expr, text)
+                    .map_err(|error| BuildError(format!("invalid if expression: {error}")))?;
+                let expr = parsed
+                    .into_iter()
+                    .find(|pair| pair.as_rule() == Rule::if_expr)
+                    .ok_or_else(|| {
+                        BuildError("if expression parse produced no expression".into())
+                    })?;
+                return build_expr(expr);
+            }
+            if text.starts_with('{') {
+                let parsed = VexParser::parse(Rule::block, text)
+                    .map_err(|error| BuildError(format!("invalid block expression: {error}")))?;
+                let block = parsed
+                    .into_iter()
+                    .find(|pair| pair.as_rule() == Rule::block)
+                    .ok_or_else(|| BuildError("block expression parse produced no block".into()))?;
+                return build_block_expr(block);
+            }
+            TextParser::new(text).parse()
+        }
+        Rule::block => build_block_expr(pair),
+        Rule::if_expr => {
+            let mut parts = pair.into_inner();
+            let condition = build_expr(
+                parts
+                    .next()
+                    .ok_or_else(|| BuildError("if expression is missing a condition".into()))?,
+            )?;
+            let then_branch = build_block_expr(
+                parts
+                    .next()
+                    .ok_or_else(|| BuildError("if expression is missing a then branch".into()))?,
+            )?;
+            let else_branch = parts
+                .next()
+                .map(build_block_expr)
+                .transpose()?
+                .map(Box::new);
+            Ok(Expr::If {
+                condition: Box::new(condition),
+                then_branch: Box::new(then_branch),
+                else_branch,
+            })
+        }
+        Rule::int => pair.as_str().parse::<i64>().map(Expr::Int).map_err(|_| {
+            BuildError(format!(
+                "integer literal `{}` is out of range",
+                pair.as_str()
+            ))
+        }),
+        Rule::string => {
+            let raw = &pair.as_str()[1..pair.as_str().len() - 1];
+            Ok(Expr::String(
+                raw.replace("\\\"", "\"").replace("\\\\", "\\"),
+            ))
+        }
+        Rule::ident if pair.as_str() == "true" => Ok(Expr::Bool(true)),
+        Rule::ident if pair.as_str() == "false" => Ok(Expr::Bool(false)),
+        Rule::ident => Ok(Expr::Var(pair.as_str().to_string())),
+        other => Err(BuildError(format!("expected expression, got `{other:?}`"))),
+    }
 }

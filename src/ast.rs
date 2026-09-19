@@ -8,74 +8,86 @@
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Type {
+    Inferred,
     I32,
     U64,
     F64,
     Bool,
+    String,
+    Unit,
     Res, // The unique Vex resource type
     Custom(String),
 }
 
 #[derive(Debug, Clone, PartialEq)] // Add PartialEq here
 pub enum Op {
+    And,
     Add,
     Sub,
     Mul,
     Div,
+    Or,
     Eq,
     Lt,
     Gt,
+    Not,
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Expr {
     Int(i64),
+    String(String),
+    Bool(bool),
     Var(String),
     BinaryOp(Box<Expr>, Op, Box<Expr>), // The core of arithmetic
     UnaryOp(Op, Box<Expr>),
+    Block(Vec<Stmt>, Option<Box<Expr>>),
+    If {
+        condition: Box<Expr>,
+        then_branch: Box<Expr>,
+        else_branch: Option<Box<Expr>>,
+    },
+    Call(String, Vec<Expr>),
 }
 
-#[derive(Debug, Clone, PartialEq)]
-pub struct Block {
-    pub stmts: Vec<Stmt>,
-}
-
+#[allow(clippy::enum_variant_names)]
 #[derive(Debug, Clone, PartialEq)]
 pub enum Stmt {
+    Function {
+        name: String,
+        params: Vec<(String, Type)>,
+        return_type: Type,
+        body: Expr,
+    },
     Let {
         name: String,
         ty: Type,
         value: Expr,
     },
+    Assign {
+        name: String,
+        value: Expr,
+    },
     ExprStmt(Expr),
-    FnDecl {
-        name: String,
-        params: Vec<String>,
-        body: Vec<Stmt>,
-    },
-    LayoutDecl {
-        name: String,
-        fields: Vec<String>,
-    },
     If {
-        cond: Expr,
-        then_block: Vec<Stmt>,
-        else_block: Option<Vec<Stmt>>,
+        condition: Expr,
+        then_branch: Box<Expr>,
+        else_branch: Option<Box<Expr>>,
     },
     While {
-        cond: Expr,
-        body: Vec<Stmt>,
+        condition: Expr,
+        body: Box<Expr>,
     },
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct Program {
-    pub stmts: Vec<Stmt>,
+    Break,
+    Continue,
+    Return(Option<Expr>),
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Value {
     Int(i64),
+    U64(u64),
     Bool(bool),
-    // Add others as you grow (Float, String, etc.)
+    String(String),
+    Unit,
 }

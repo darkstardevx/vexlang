@@ -1,0 +1,42 @@
+# Changelog
+
+## Unreleased (alpha)
+
+- Stabilized parsing and AST construction for the core expression language.
+- Added precedence-aware arithmetic, comparisons, unary minus, variables, and
+  `let` declarations.
+- Added evaluator environments, overflow and division-by-zero checks, and
+  structured CLI errors.
+- The CLI now reads a source file or stdin instead of evaluating hardcoded
+  source.
+- Disabled the incomplete QBE code-generation path while the interpreter is
+  being established.
+- Added boolean short-circuiting, typed conditional blocks, `if`/`else`, and
+  `while` loops.
+- Added integer annotation range checks and removed unsupported declaration
+  syntax from the active grammar.
+- Added mutable assignment so loops can update program state.
+- Added `break` and `continue` with loop-only semantic validation, nested
+  control-flow propagation, and a one-million-iteration safety limit.
+
+Vex remains an alpha prototype; syntax and APIs may change.
+
+## Unreleased
+
+- Added typed function declarations, calls, returns, recursion, scoped
+  parameters, argument/return checking, and call-depth protection.
+- Added distinct `u64` runtime values and checked `i32`/`u64` conversions.
+- Added string literals plus `print` and `println` built-ins.
+- Deferred user-defined types, collections, filesystem access, and modules.
+- Added structured diagnostics with stable codes, source underlines,
+  line/column locations, and actionable suggestions.
+- Added `check`, `run`, `fmt`, `test`, and explicit unsupported `build` CLI
+  commands while preserving the legacy file argument form.
+- Milestone 8: added typed lowering to a deterministic textual IR exposed by
+  `build` and `ir`. Machine-code and QBE backends remain intentionally deferred.
+- Milestone 9: added interpreter/IR compatibility coverage, stable CLI
+  diagnostic and generated-input tests, an opt-in performance smoke test, and
+  release-readiness policy documentation.
+- Public-release preparation: selected the MIT license, added a private
+  security contact, and defined the `0.1.0-alpha.1` release as an alpha
+  interpreter and typed-IR prototype.
