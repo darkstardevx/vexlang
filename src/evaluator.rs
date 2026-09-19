@@ -289,6 +289,15 @@ fn eval_expr(x: &Expr, e: &mut Env, f: &Functions, d: usize) -> Result<Control, 
             if n == "u64" {
                 return Ok(Control::Value(Value::U64(to_u64(&vals[0])?)));
             }
+            if n == "ok" || n == "err" {
+                if vals.len() != 1 {
+                    return Err(EvalError::RuntimeError(format!("{n} expects one argument")));
+                }
+                return Ok(Control::Value(Value::Result {
+                    ok: n == "ok",
+                    value: Box::new(vals.into_iter().next().unwrap()),
+                }));
+            }
             call(n, vals, f, d)
         }
         Expr::UnaryOp(Op::Not, x) => Ok(Control::Value(Value::Bool(!as_bool(eval_expr(
@@ -374,6 +383,7 @@ fn validate(n: &str, t: &Type, v: &Value) -> Result<(), EvalError> {
         Type::Custom(name) => {
             matches!(v, Value::Record(value_name, _) if value_name == name)
                 || matches!(v, Value::Enum { enum_name, .. } if enum_name == name)
+                || (name == "Result" && matches!(v, Value::Result { .. }))
         }
         Type::Array(element) => {
             matches!(v, Value::Array(values) if values.iter().all(|value| validate(n, element, value).is_ok()))
@@ -419,6 +429,9 @@ fn display(v: &Value) -> String {
             variant,
             fields,
         } => format!("{enum_name}::{variant}{{{} fields}}", fields.len()),
+        Value::Result { ok, value } => {
+            format!("{}({})", if *ok { "Ok" } else { "Err" }, display(value))
+        }
     }
 }
 fn set_index(array: &mut Value, indices: &[usize], value: Value) -> Result<(), EvalError> {

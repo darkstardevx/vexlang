@@ -359,6 +359,13 @@ impl SemanticAnalyzer {
                 .cloned()
                 .ok_or_else(|| format!("undefined variable `{n}`")),
             Expr::Call(n, args) => {
+                if matches!(n.as_str(), "ok" | "err") {
+                    if args.len() != 1 {
+                        return Err(format!("{n} expects one argument"));
+                    }
+                    self.check_expr(&args[0], scope, loops, ret)?;
+                    return Ok(Type::Custom("Result".into()));
+                }
                 if matches!(n.as_str(), "print" | "println") {
                     if args.len() != 1 {
                         return Err(format!("{n} expects one argument"));

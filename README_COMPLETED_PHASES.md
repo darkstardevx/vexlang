@@ -81,3 +81,10 @@ and project/package management remain future work.
 - Added typed enum construction, semantic validation, interpreter values, and
   textual IR rendering.
 - Pattern matching and exhaustive checking remain deferred.
+
+## Phase 11 — Structured result values
+
+- Added `ok(value)` and `err(value)` constructors.
+- Added typed semantic checking, runtime result values, display formatting,
+  and IR builtin lowering.
+- Result propagation, typed error parameters, and matching remain deferred.

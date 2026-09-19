@@ -454,4 +454,22 @@ mod tests {
             })
         );
     }
+
+    #[test]
+    fn evaluates_structured_results() {
+        assert_eq!(
+            run("let success = ok(3); success;"),
+            Ok(Value::Result {
+                ok: true,
+                value: Box::new(Value::Int(3)),
+            })
+        );
+        assert_eq!(
+            run("let failure = err(\"bad\"); failure;"),
+            Ok(Value::Result {
+                ok: false,
+                value: Box::new(Value::String("bad".into())),
+            })
+        );
+    }
 }

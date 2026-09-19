@@ -70,6 +70,9 @@ let answer: Maybe = Maybe::Some { value: 42 };
 
 Enum variants are checked against their declared fields and preserved as tagged
 runtime values and textual IR. Pattern matching is not yet implemented.
+The built-ins `ok(value)` and `err(value)` create structured result values
+with a success flag and payload. Result propagation (`?`), typed payload
+parameters, and pattern matching are deferred.
 Arrays and indexing are supported as described below; maps, modules/imports,
 structured errors/results, and project configuration remain deferred.
 

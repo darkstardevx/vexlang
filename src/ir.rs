@@ -429,6 +429,7 @@ fn lower_expr(expr: &Expr, functions: &Functions, scope: &mut Scope) -> Result<I
                 .collect::<Result<Vec<_>, _>>()?;
             let ty = match name.as_str() {
                 "print" | "println" => IrType::Unit,
+                "ok" | "err" => IrType::Record("Result".into()),
                 "i32" => IrType::I32,
                 "u64" => IrType::U64,
                 _ => functions
