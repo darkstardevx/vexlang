@@ -1,0 +1,54 @@
+# Vex milestones
+
+This file is the forward-looking project plan. Completed work is recorded
+separately in [`README_COMPLETED_PHASES.md`](README_COMPLETED_PHASES.md).
+
+## Milestone 10 — Release hardening
+
+- Freeze the `0.1.0-alpha.1` syntax and command behavior.
+- Add release artifacts, version/tag checks, and published-package validation.
+- Add stronger fuzzing and longer-running performance benchmarks.
+- Keep stable and MSRV CI gates green.
+
+**Current status:** The alpha interpreter and typed-IR prototype is ready for
+public use. A production `0.1` release remains blocked by the missing native
+backend and deferred language features.
+
+## Milestone 11 — Language expansion
+
+- Add user-defined types and records.
+- Add collections and indexing.
+- Add a structured error/result model.
+- Define modules, imports, and project configuration.
+
+## Milestone 12 — Production diagnostics
+
+- Retain source spans on every AST node.
+- Add richer multi-span diagnostics and machine-readable output.
+- Add error recovery for multiple diagnostics per invocation.
+
+## Milestone 13 — Native compilation
+
+- Implement a verified backend behind the existing typed IR.
+- Add compiled-vs-interpreted differential tests.
+- Define target support and reproducible build artifacts.
+
+## Milestone 14 — Ecosystem and tooling
+
+- Add package/project management.
+- Add editor/LSP integration.
+- Add formatter guarantees and language-server diagnostics.
+- Publish stable standard-library and compatibility policies.
+
+## Quality gate
+
+Every milestone must preserve:
+
+```sh
+cargo fmt --all -- --check
+cargo test --all-targets
+cargo clippy --all-targets -- -D warnings
+cargo +1.85.0 test --all-targets
+cargo +1.85.0 clippy --all-targets -- -D warnings
+mdbook test docs
+```

@@ -8,3 +8,7 @@ The project roadmap is in [Milestones](milestones.md). The
 [diagnostics guide](diagnostics.md) document the user-facing contracts. The
 first milestone defines the quality gates that every change must pass before
 the language grows further.
+
+The repository also maintains a standalone
+[milestone plan](../../README_MILESTONES.md) and
+[completed phases](../../README_COMPLETED_PHASES.md) record.

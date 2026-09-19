@@ -88,6 +88,10 @@ The complete [Vex mdBook documentation](docs/src/intro.md) includes the
 status](docs/src/features.md), [development quality gates](docs/src/development.md),
 and [roadmap](docs/src/milestones.md).
 
+Project tracking is also available in the standalone
+[milestone plan](README_MILESTONES.md) and
+[completed phases](README_COMPLETED_PHASES.md) documents.
+
 QBE output is disabled until a correct implementation exists; the internal
 generator returns an explicit unsupported error rather than emitting partial
 output. The textual IR is therefore the only build artifact in this milestone.
