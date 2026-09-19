@@ -1,0 +1,4 @@
+fn add(a: i32, b: i32) -> i32 { a + b }
+let x = add(2, 3);
+while x < 6 { x = x + 1; }
+x;

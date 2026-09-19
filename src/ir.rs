@@ -1,8 +1,8 @@
 //! Typed, backend-independent intermediate representation.
 //!
-//! This is deliberately a small textual IR rather than QBE.  It gives the
-//! compiler pipeline a checked lowering target without claiming that a
-//! machine-code backend exists.
+//! This is deliberately a small textual IR separate from QBE.  It gives the
+//! compiler pipeline a checked lowering target before optional target-specific
+//! emitters produce artifacts such as experimental scalar QBE IL.
 
 use crate::ast::{Expr, Op, Stmt, Type};
 use std::collections::HashMap;

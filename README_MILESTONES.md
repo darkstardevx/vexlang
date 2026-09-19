@@ -13,8 +13,8 @@ separately in [`README_COMPLETED_PHASES.md`](README_COMPLETED_PHASES.md).
 - Keep stable, MSRV, documentation, and release-package CI gates green.
 
 **Current status:** Complete for the public alpha scope. A production `0.1`
-release remains blocked by the missing native backend and deferred language
-features.
+release remains blocked by packaged native executable generation, broader
+backend validation, and deferred language features.
 
 ## Milestone 9 — Language expansion
 
@@ -33,8 +33,9 @@ project configuration remain explicitly deferred.
 The next implementation sequence is tracked as Phases 15–20: pattern matching
 and Result propagation, a stateful REPL, local modules/projects, mutable maps
 and iteration, type aliases/tuples/generic foundations, and compiler-readiness
-validation. Native code generation remains explicitly out of scope until a
-verified backend exists.
+validation. Experimental QBE IL now exists for the first scalar subset; packaged
+native executable generation remains out of scope until validation and runtime
+ABI coverage are broader.
 
 Phase 17 is currently a documented boundary: local module/import resolution
 and project entrypoint behavior are not yet implemented.
@@ -42,9 +43,10 @@ and project entrypoint behavior are not yet implemented.
 The type-system phase explicitly defers aliases, tuples, generic foundations,
 and broad conversion changes until they can use one shared representation.
 
-Compiler readiness remains validation-only for now: native code generation is
-not claimed, fake native artifacts are prohibited, and spans/diagnostics/IR
-validation must be expanded before a backend is introduced.
+Compiler readiness remains validation-first: fake native artifacts are
+prohibited, QBE IL is emitted only for the verified scalar subset, and
+spans/diagnostics/IR validation must be expanded before native executable
+artifacts are introduced.
 
 ## Milestone 12 — Production diagnostics
 
@@ -54,9 +56,10 @@ validation must be expanded before a backend is introduced.
 
 ## Milestone 13 — Native compilation
 
-- Implement a verified backend behind the existing typed IR.
-- Add compiled-vs-interpreted differential tests.
-- Define target support and reproducible build artifacts.
+- Harden the experimental QBE backend behind the existing typed IR.
+- Expand compiled-vs-interpreted differential tests beyond the optional local
+  QBE/`cc` smoke corpus.
+- Define target support and reproducible native executable build artifacts.
 
 ## Milestone 14 — Ecosystem and tooling
 

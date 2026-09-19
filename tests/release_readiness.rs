@@ -100,6 +100,15 @@ fn generated_arithmetic_corpus_is_consistent() {
 }
 
 #[test]
+fn qbe_fixture_is_stable() {
+    let source = include_str!("fixtures/qbe_scalar.vex");
+    let expected = include_str!("fixtures/qbe_scalar.expected.ssa");
+    let output = vex(source, "qbe");
+    assert!(output.status.success(), "qbe failed: {:?}", output.stderr);
+    assert_eq!(String::from_utf8_lossy(&output.stdout), expected);
+}
+
+#[test]
 fn textual_ir_is_deterministic_and_not_a_native_artifact() {
     let source = "let answer = 6 * 7; answer;";
     let first = vex(source, "build");
@@ -113,7 +122,7 @@ fn textual_ir_is_deterministic_and_not_a_native_artifact() {
 }
 
 #[test]
-fn target_command_emits_contract_header_for_scalar_and_rejects_unsupported() {
+fn target_commands_emit_scalar_artifacts_and_reject_unsupported() {
     let scalar_source = "let x: i32 = 1; while x < 3 { x = x + 1; } x;";
     let output = vex(scalar_source, "target");
     assert!(
@@ -124,11 +133,20 @@ fn target_command_emits_contract_header_for_scalar_and_rejects_unsupported() {
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(stdout.starts_with("target vex-scalar-v1\nentry vex_main\n"));
 
+    let qbe = vex("fn add(a: i32, b: i32) -> i32 { a + b } add(2, 3);", "qbe");
+    assert!(qbe.status.success(), "qbe failed: {:?}", qbe.stderr);
+    let stdout = String::from_utf8_lossy(&qbe.stdout);
+    assert!(stdout.starts_with("# QBE intermediate language emitted by Vex"));
+    assert!(stdout.contains("function w $add(w %p_a, w %p_b)"));
+    assert!(stdout.contains("export function w $vex_main()"));
+
     let non_scalar_source = "let xs = [1, 2]; xs;";
-    let output = vex(non_scalar_source, "target");
-    assert_eq!(output.status.code(), Some(3));
-    let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(stderr.contains("BE002"));
+    for command in ["target", "qbe"] {
+        let output = vex(non_scalar_source, command);
+        assert_eq!(output.status.code(), Some(3));
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        assert!(stderr.contains("BE002"));
+    }
 }
 
 #[test]

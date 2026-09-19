@@ -8,7 +8,11 @@
 - Documented the native lowering subset and runtime/backend contract.
 - Added the first native target contract (`vex-scalar-v1`), target validator,
   `TextBackend` emitter, and `target` CLI command.
-- Added a backend trait boundary without emitting fake QBE or native output.
+- Added a backend trait boundary and an experimental `QbeBackend`/`qbe` CLI
+  command for the verified scalar subset without producing fake native
+  executable artifacts.
+- Hardened experimental QBE scalar runtime semantics with generated traps for
+  i32 overflow, division by zero, and signed division overflow.
 
 ## 0.1.0-alpha.1
 
@@ -35,8 +39,8 @@
   structured CLI errors.
 - The CLI now reads a source file or stdin instead of evaluating hardcoded
   source.
-- Disabled the incomplete QBE code-generation path while the interpreter is
-  being established.
+- Earlier incomplete QBE code-generation path was disabled while the
+  interpreter was being established.
 - Added boolean short-circuiting, typed conditional blocks, `if`/`else`, and
   `while` loops.
 - Added integer annotation range checks and removed unsupported declaration
@@ -67,7 +71,8 @@ types share a common representation; non-string keys are not silently added.
 - Added `check`, `run`, `fmt`, `test`, and explicit unsupported `build` CLI
   commands while preserving the legacy file argument form.
 - Milestone 8: added typed lowering to a deterministic textual IR exposed by
-  `build` and `ir`. Machine-code and QBE backends remain intentionally deferred.
+  `build` and `ir`. Machine-code executable artifacts remain intentionally
+  deferred.
 - Milestone 9: added interpreter/IR compatibility coverage, stable CLI
   diagnostic and generated-input tests, an opt-in performance smoke test, and
   release-readiness policy documentation.

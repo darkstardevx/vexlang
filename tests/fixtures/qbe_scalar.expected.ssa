@@ -1,0 +1,57 @@
+# QBE intermediate language emitted by Vex
+# Target: vex-scalar-v1
+
+function w $add(w %p_a, w %p_b) {
+@start
+    %v_a_0 =l alloc4 4
+    %v_b_1 =l alloc4 4
+    storew %p_a, %v_a_0
+    storew %p_b, %v_b_1
+    %t0 =w loadw %v_a_0
+    %t1 =w loadw %v_b_1
+    %t2 =w add %t0, %t1
+    %t3 =w xor %t2, %t0
+    %t4 =w xor %t2, %t1
+    %t5 =w and %t3, %t4
+    %t6 =w csltw %t5, 0
+    jnz %t6, @trap_0, @trap_ok_1
+@trap_0
+    call $exit(w 101)
+    hlt
+@trap_ok_1
+    ret %t2
+}
+
+export function w $vex_main() {
+@start
+    %v_x_0 =l alloc4 4
+    %t0 =w copy 2
+    %t1 =w copy 3
+    %t2 =w call $add(w %t0, w %t1)
+    storew %t2, %v_x_0
+    jmp @while_cond_0
+@while_cond_0
+    %t3 =w loadw %v_x_0
+    %t4 =w copy 6
+    %t5 =w csltw %t3, %t4
+    jnz %t5, @while_body_1, @while_end_2
+@while_body_1
+    %t6 =w loadw %v_x_0
+    %t7 =w copy 1
+    %t8 =w add %t6, %t7
+    %t9 =w xor %t8, %t6
+    %t10 =w xor %t8, %t7
+    %t11 =w and %t9, %t10
+    %t12 =w csltw %t11, 0
+    jnz %t12, @trap_3, @trap_ok_4
+@trap_3
+    call $exit(w 101)
+    hlt
+@trap_ok_4
+    storew %t8, %v_x_0
+    %t13 =w copy 0
+    jmp @while_cond_0
+@while_end_2
+    %t14 =w loadw %v_x_0
+    ret %t14
+}

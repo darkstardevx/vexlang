@@ -16,7 +16,7 @@ released under the [MIT license](LICENSE).
 ```text
 RUNTIME   [ONLINE]   interpreter + typed textual IR
 SAFETY    [GREEN]    diagnostics, limits, MSRV, CI gates
-BACKEND   [DEFERRED] native machine-code / QBE emission
+BACKEND   [EXPERIMENTAL] verified scalar QBE IL; no native executable artifacts
 CHANNEL   [ALPHA]   syntax and APIs may evolve
 ```
 
@@ -66,9 +66,8 @@ values[1];
 ```
 
 Maps and generics are explicitly deferred. Floating point, `res`, filesystem
-access, modules/imports,
-structured errors/results, project configuration, and native code generation
-are intentionally deferred.
+access, modules/imports, structured errors/results, project configuration, and
+packaged native executable generation are intentionally deferred.
 
 ## 🧪 Quick start
 
@@ -81,15 +80,18 @@ cargo run -- test program.vex
 cargo run -- build program.vex
 cargo run -- ir program.vex
 cargo run -- target program.vex
+cargo run -- qbe program.vex
 ```
 
 `fmt` validates source and writes it to stdout. `build` and `ir` validate and
 lower the program to deterministic textual IR; they do not emit machine code.
 `target` validates the IR against the `vex-scalar-v1` contract and emits
-a verified textual target artifact.
+a verified textual target artifact. `qbe` emits experimental QBE IL for the
+same scalar subset; it is an intermediate artifact, not a packaged native
+executable.
 Before rendering, the IR verifier checks scopes, types, declarations, control
-flow, and backend support. A failed verification is a hard error: no backend
-is invoked and no native artifact is produced.
+flow, and backend support. A failed verification is a hard error: no target
+artifact is produced.
 The legacy `cargo run -- program.vex` form remains an alias for `run`.
 
 Read source from stdin:
@@ -178,10 +180,10 @@ The package version is declared in `Cargo.toml` and exposed by
 ```
 
 The second command produces the Cargo source package and a SHA-256 checksum
-under `dist/`. The package contains the textual IR implementation only; it
-does not contain a native executable. Verify the checksum and attach both
-files to the matching Git tag. The complete publish checklist is in the
-[release guide](docs/src/release.md).
+under `dist/`. The package contains source for the interpreter, textual IR, and
+experimental QBE IL emitter; it does not contain a native executable. Verify
+the checksum and attach both files to the matching Git tag. The complete
+publish checklist is in the [release guide](docs/src/release.md).
 
 ## 🤝 Contributing
 
@@ -192,17 +194,18 @@ The current Discord contact is **`darkstar_dev`**; a dedicated server invite
 will be added when the community space is established. Please review the
 [security policy](SECURITY.md) before reporting vulnerabilities.
 
-QBE output is disabled until a correct implementation exists; the internal
-generator returns an explicit unsupported error rather than emitting partial
-output. Textual IR is the only build artifact in this milestone.
+QBE output is available through `vexlang qbe` for the first scalar target. It
+remains experimental and intentionally stops at QBE IL; release artifacts still
+contain source packages rather than native executables.
 
 ### Native lowering contract
 
-The first native target may consume only verified IR containing `i32`, `u64`,
-`bool`, `unit`, calls to declared functions, structured `if`/`while`, records,
-and immutable arrays. The target must document calling convention, integer
-overflow/division behavior, record and array layout, allocation/lifetime, and
-the process entry point. Strings, field projection, indexed mutation, enums,
+The first native target consumes only verified IR containing `i32`, `bool`,
+`unit`, calls to declared functions, and structured `if`/`while`/loop-control.
+The contract documents the calling convention, checked integer overflow and
+division traps, control-flow model, runtime boundary, and `vex_main` entry
+point.
+Strings, `u64`, records, arrays, field projection, indexed mutation, enums,
 `Result`, maps, and I/O builtins are currently deferred because no runtime ABI
-has been specified. The `Backend` trait is the clean boundary for a future
-QBE or Cranelift implementation; it intentionally emits no code today.
+has been specified. The `Backend` trait is the boundary used by both the
+textual target artifact and the experimental QBE IL emitter.

@@ -76,13 +76,14 @@ and quality gates is maintained as part of the mdBook.
 
 - Add a typed, backend-independent lowered IR and a deterministic text form.
 - Make `build` validate and lower without claiming to produce machine code.
-- Keep QBE disabled until a verified backend exists; unsupported constructs
+- Keep backend output behind explicit target validation; unsupported constructs
   must fail explicitly.
 - Differential-test interpreter results and lowering for supported expressions,
   control flow, functions, and types.
 
 **Status:** The typed textual IR and `build`/`ir` artifact are implemented.
-Machine-code/QBE emission remains deferred.
+Experimental QBE IL emission is available for the verified scalar subset;
+machine-code executable artifacts remain deferred.
 
 ## Milestone 9 — Compatibility and performance
 
@@ -113,7 +114,8 @@ Native binaries are intentionally not produced.
 **Status:** The repository is ready for a labeled `0.1.0-alpha.1` public
 release as an interpreter and typed-IR prototype. The MIT license and security
 contact are in place. A production `0.1` compiler release remains blocked by
-the absent native backend and deferred language features.
+native executable artifacts, broader backend validation, and deferred language
+features.
 
 ## Milestone 12 — Typed collections
 

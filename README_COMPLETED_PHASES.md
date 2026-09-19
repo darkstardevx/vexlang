@@ -43,8 +43,8 @@ This file records delivered phases. Forward-looking work is tracked in
   native target.
 - Added the `vex-scalar-v1` target contract, target validation, and the `target`
   CLI command emitting verified target IR.
-- Kept native and QBE output explicitly unsupported until a verified backend
-  exists.
+- Kept native executable output explicitly unsupported until a verified backend
+  and runtime artifact story exist.
 
 ## Phase 7 — Compatibility and release readiness
 
@@ -69,8 +69,8 @@ This file records delivered phases. Forward-looking work is tracked in
 ## Current release posture
 
 The repository is public-ready for the labeled alpha scope. It is not yet a
-production compiler release: native code generation, maps, generics, modules,
-and project/package management remain future work.
+production compiler release: native executable generation, maps, generics,
+modules, and project/package management remain future work.
 
 ## Phase 15 — Pattern matching and Result propagation
 
@@ -105,9 +105,19 @@ and project/package management remain future work.
 
 ## Phase 20 — Compiler readiness
 
-- Deferred: AST-wide spans, structured diagnostics, IR validation, and backend
-  prerequisites remain ahead of native code generation. No fake native output
-  is emitted.
+- Deferred: AST-wide spans, structured diagnostics, broader IR validation, and
+  backend prerequisites remain ahead of native executable generation. No fake
+  native output is emitted.
+
+## Phase 21 — Experimental scalar QBE IL
+
+- Added a `QbeBackend` for the verified `vex-scalar-v1` subset.
+- Added `vexlang qbe` to emit QBE IL for scalar functions, calls, local slots,
+  branches, loops, `break`/`continue`, returns, and short-circuit boolean logic.
+- Added structural backend coverage plus an optional compiled-vs-interpreted
+  differential smoke test that runs only when local `qbe` and `cc` tools exist.
+- Native executable packaging, runtime ABI expansion, and aggregate lowering
+  remain deferred.
 
 ## Phase 9 — Typed collections and indexing
 

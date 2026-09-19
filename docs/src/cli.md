@@ -18,6 +18,7 @@ metadata checks.
 | `build FILE` | Validate and print the typed textual IR (no machine code) | `0` |
 | `ir FILE` | Alias for `build`; print the typed textual IR | `0` |
 | `target FILE` | Validate against `vex-scalar-v1` and emit textual target IR | `0` |
+| `qbe FILE` | Validate against `vex-scalar-v1` and emit experimental QBE IL | `0` |
 
 `vexlang FILE` remains a backwards-compatible alias for `vexlang run FILE`.
 Examples:
@@ -28,6 +29,7 @@ cargo run -- run examples/hello.vex
  cargo run -- repl
 printf 'let n = 6; n * 7;' | cargo run -- run -
 cargo run -- fmt program.vex > formatted.vex
+cargo run -- qbe program.vex > program.ssa
 ```
 
 ## Exit codes
@@ -35,9 +37,11 @@ cargo run -- fmt program.vex > formatted.vex
 * **0** — command completed successfully.
 * **1** — source diagnostic or evaluation/test failure.
 * **2** — invalid command usage or an input/output error.
-* **3** — a recognized operation is deliberately unsupported (for example,
-  a future machine-code backend request).
+* **3** — a recognized target/backend operation rejected the program as
+  unsupported.
 
 `build` does not create a fake executable or partial machine code. It emits a
-stable, human-readable IR artifact instead. Unsupported language types and
-backend features fail explicitly with a source diagnostic.
+stable, human-readable IR artifact instead. `qbe` emits QBE IL for the verified
+scalar subset only; it does not assemble, link, or package a native executable.
+Unsupported language types and backend features fail explicitly with a source
+diagnostic or target-boundary error.

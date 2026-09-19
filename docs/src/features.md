@@ -13,9 +13,10 @@ The interpreter currently supports:
 * user-defined record declarations, construction, validated fields, and access;
 * typed arrays, nested/empty literals, indexing, mutation, and bounds checks;
 * `print` and `println`;
-* structured diagnostics and the `check`, `run`, `fmt`, `test`, `build`, and
-  `ir` commands;
-* a typed, deterministic, backend-independent textual IR.
+* structured diagnostics and the `check`, `run`, `fmt`, `test`, `build`, `ir`,
+  `target`, and `qbe` commands;
+* a typed, deterministic, backend-independent textual IR;
+* experimental QBE IL emission for the verified scalar target subset.
 
 ## Deferred or intentionally unsupported
 
@@ -26,32 +27,38 @@ compatibility, diagnostic,
 generated-input, and opt-in performance smoke tests are now present; a
 coverage-guided fuzzing service remains deferred.
 
-Vex has no verified machine-code or QBE backend. `build` stops after typed
-lowering and emits textual IR; it never emits misleading output. Floating
-point, resource, custom types, and other constructs are rejected explicitly by
-the lowering stage rather than silently approximated. Record lowering is supported;
-native code generation is not.
+Vex has no packaged native executable backend. `build` stops after typed
+lowering and emits textual IR; `qbe` emits experimental QBE IL only after the
+scalar target validator accepts the program. Floating point, resource, custom
+types, and other constructs are rejected explicitly by the lowering or target
+validation stage rather than silently approximated. Record lowering is
+supported for textual IR; native executable generation is not.
 
 ## Lowerable IR contract
 
-`build` and `ir` run a verifier before producing textual IR. The verified
-subset is deliberately narrower than the interpreter: `i32`, `u64`, `bool`,
-`unit`, arithmetic/boolean expressions, structured control flow, declared
-functions, record construction, and immutable arrays. Strings, record field
-projection, indexed mutation, enums, `Result`, maps, and I/O builtins are
-deferred until their native representation and runtime ABI are specified.
-Failures carry a stable `IR001` (invalid invariant) or `IR002` (unsupported
-feature) code and a path into the IR. No backend is called after a failure.
+`build` and `ir` run a verifier before producing textual IR. That lowerable
+textual-IR subset is deliberately broader than the first native target and can
+represent `i32`, `u64`, `bool`, `unit`, arithmetic/boolean expressions,
+structured control flow, declared functions, record construction, and immutable
+arrays. The `vex-scalar-v1` target used by `target` and `qbe` is narrower:
+`i32`, `bool`, `unit`, declared function calls, structured branches, loops,
+loop control, and returns. Strings, `u64`, record field projection, indexed
+mutation, enums, `Result`, maps, and I/O builtins are deferred until their
+native representation and runtime ABI are specified. Failures carry a stable
+`IR001` (invalid invariant) or `IR002` (unsupported feature) code and a path
+into the IR. No target artifact is emitted after a failure.
 
-The future backend contract must specify calling convention, entry point,
-layout, allocation, ownership, integer semantics, and runtime services. A
-`Backend` trait exists as the boundary; QBE/Cranelift output is intentionally
-not implemented.
+The backend contract specifies calling convention, entry point, checked scalar
+integer overflow/division traps, control-flow lowering, and runtime boundaries.
+The experimental QBE emitter lowers target traps to `exit(101)` followed by
+`hlt`. The `Backend` trait is the boundary used by the textual target emitter
+and experimental QBE emitter; Cranelift output is intentionally not
+implemented.
 
 ## Public release posture
 
 Vex is suitable for a labeled `0.1.0-alpha.1` public release as an interpreter
 and typed-IR prototype. It is not presented as a production compiler. The MIT
 license grants redistribution rights, and security reports should be sent to
-`cybercore.sh@gmail.com`. A native backend, fuzzing service, maps, generics,
-modules, and project configuration remain post-alpha work.
+`cybercore.sh@gmail.com`. Native executable artifacts, a fuzzing service, maps,
+generics, modules, and project configuration remain post-alpha work.
