@@ -11,6 +11,7 @@ metadata checks.
 | --- | --- | --- |
 | `check FILE` | Parse and semantically validate without running | `0` |
 | `run FILE` | Validate and evaluate the program | `0` |
+| `repl` | Read, validate, and evaluate one source line at a time | `0` |
 | `fmt FILE` | Validate and write the source to standard output | `0` |
 | `test FILE` | Validate and evaluate as an executable smoke test | `0` |
 | `build FILE` | Validate and print the typed textual IR (no machine code) | `0` |
@@ -22,6 +23,7 @@ Examples:
 ```sh
 cargo run -- check examples/hello.vex
 cargo run -- run examples/hello.vex
+ cargo run -- repl
 printf 'let n = 6; n * 7;' | cargo run -- run -
 cargo run -- fmt program.vex > formatted.vex
 ```

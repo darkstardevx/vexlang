@@ -7,7 +7,7 @@ mod ir;
 mod parser;
 
 use std::fs;
-use std::io::{self, Read, Write};
+use std::io::{self, BufRead, Read, Write};
 
 use analyzer::SemanticAnalyzer;
 use builder::build_ast;
@@ -106,7 +106,32 @@ fn read_source(path: Option<&str>) -> Result<String, String> {
 }
 
 fn usage() -> &'static str {
-    "usage: vexlang [check|run|fmt|test|build|ir] [FILE|-]\n       vexlang FILE   (backwards-compatible alias for run)\n       vexlang --version"
+    "usage: vexlang [check|run|repl|fmt|test|build|ir] [FILE|-]\n       vexlang FILE   (backwards-compatible alias for run)\n       vexlang --version"
+}
+
+fn repl() {
+    println!("Vexlang REPL (enter `:quit` to exit)");
+    let stdin = io::stdin();
+    let mut input = stdin.lock();
+    let mut line = String::new();
+    loop {
+        print!("vex> ");
+        let _ = io::stdout().flush();
+        line.clear();
+        if input.read_line(&mut line).unwrap_or(0) == 0 {
+            break;
+        }
+        if line.trim() == ":quit" || line.trim() == ":q" {
+            break;
+        }
+        if line.trim().is_empty() {
+            continue;
+        }
+        match run(&line) {
+            Ok(value) => println!("{value:?}"),
+            Err(error) => eprintln!("{}", error.render(&line, "<repl>")),
+        }
+    }
 }
 
 fn main() {
@@ -120,7 +145,7 @@ fn main() {
         [one]
             if !matches!(
                 one.as_str(),
-                "check" | "run" | "fmt" | "test" | "build" | "ir"
+                "check" | "run" | "repl" | "fmt" | "test" | "build" | "ir"
             ) =>
         {
             ("run", Some(one.as_str()))
@@ -139,6 +164,10 @@ fn main() {
             std::process::exit(2);
         }
     };
+    if command == "repl" {
+        repl();
+        return;
+    }
     let source = match read_source(path) {
         Ok(source) => source,
         Err(error) => {

@@ -88,3 +88,10 @@ and project/package management remain future work.
 - Added typed semantic checking, runtime result values, display formatting,
   and IR builtin lowering.
 - Result propagation, typed error parameters, and matching remain deferred.
+
+## Phase 12 — Interactive REPL
+
+- Added the `vexlang repl` command with prompts, line evaluation, and `:quit`
+  / `:q` exit commands.
+- The REPL intentionally evaluates each line independently; persistent
+  bindings and multiline editing remain deferred.
