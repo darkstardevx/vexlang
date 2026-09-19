@@ -7,3 +7,4 @@
 - [Features and limitations](features.md)
 - [Development and quality](development.md)
 - [Milestones](milestones.md)
+- [Contributing](contributing.md)

@@ -12,3 +12,6 @@ the language grows further.
 The repository also maintains a standalone
 [milestone plan](../../README_MILESTONES.md) and
 [completed phases](../../README_COMPLETED_PHASES.md) record.
+
+Contributor setup and review expectations are documented in
+[CONTRIBUTING.md](../../CONTRIBUTING.md).

@@ -141,9 +141,12 @@ The complete [Vex mdBook documentation](docs/src/intro.md) includes the
 
 ## 🤝 Contributing
 
-Small, focused changes are welcome. Before opening a pull request, run the
-quality gates above and include tests for user-visible behavior. Please review
-the [security policy](SECURITY.md) before reporting vulnerabilities.
+Small, focused changes are welcome. See
+[CONTRIBUTING.md](CONTRIBUTING.md) for setup, good-first-contribution ideas,
+language-change expectations, pull-request guidance, and all quality gates.
+The current Discord contact is **`darkstar_dev`**; a dedicated server invite
+will be added when the community space is established. Please review the
+[security policy](SECURITY.md) before reporting vulnerabilities.
 
 QBE output is disabled until a correct implementation exists; the internal
 generator returns an explicit unsupported error rather than emitting partial
