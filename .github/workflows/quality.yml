@@ -23,6 +23,26 @@ jobs:
       - run: cargo clippy --all-targets -- -D warnings
       - run: ./scripts/check-release.sh
 
+  qbe:
+    name: QBE backend checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: stable
+      - name: Install QBE
+        run: |
+          curl -fL https://c9x.me/compile/release/qbe-1.3.tar.xz -o /tmp/qbe.tar.xz
+          tar -C /tmp -xf /tmp/qbe.tar.xz
+          make -C /tmp/qbe-1.3 -j"$(nproc)"
+          sudo make -C /tmp/qbe-1.3 install
+          qbe -h
+      - name: Run QBE backend smoke tests
+        run: |
+          cargo test qbe_matches_interpreter_for_scalar_corpus_when_toolchain_is_available -- --nocapture
+          cargo test --test release_readiness -- --nocapture
+
   docs:
     name: Documentation tests
     runs-on: ubuntu-latest
